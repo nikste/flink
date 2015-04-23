@@ -20,6 +20,11 @@ package org.apache.flink.api.scala
 
 import java.io.{File, FileOutputStream}
 
+import org.apache.flink.api.java.JarHelper
+import org.apache.flink.api.scala.shell.ScalaShellRemoteEnvironment
+import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
+import org.apache.flink.configuration.{ConfigConstants, Configuration}
+
 import scala.tools.nsc.interpreter.ILoop
 
 /**
@@ -28,8 +33,17 @@ import scala.tools.nsc.interpreter.ILoop
 class FlinkILoop extends ILoop {
 
 
-  // flink execution environment
-  val flinkEnv = ExecutionEnvironment.getExecutionEnvironment
+
+  // flink local cluster
+  val cluster  = new LocalFlinkMiniCluster(new Configuration,false) // port offen, jobs annehmen (local actor system for akka)
+
+  // port
+  val clusterPort = cluster.getJobManagerRPCPort
+
+  // remote environment
+  var remoteEnv = new ScalaShellRemoteEnvironment("localhost", clusterPort, this);//new RemoteEnvironment("localhost", clusterPort)
+
+  val scalaEnv = new ExecutionEnvironment(remoteEnv)
 
 
   /**
@@ -42,14 +56,20 @@ class FlinkILoop extends ILoop {
     var vdIt = vd.iterator
 
     var basePath = "/tmp/scala_shell/"
-    var z = 0
+
     for (fi <- vdIt) {
       if (fi.isDirectory) {
+
+        var fullPath = basePath + fi.name + "/"
+
         var fiIt = fi.iterator
+
         for (f <- fiIt) {
-          println(f.path + f.name + ": isDir:" + f.isDirectory)
+
+          //println(f.path + f.name + ": isDir:" + f.isDirectory)
+
           // create directories
-          var fullPath = basePath + z + "/"
+          //var fullPath = basePath + z + "/"
           var newfile = new File(fullPath)
           newfile.mkdirs()
           newfile = new File(fullPath + f.name)
@@ -63,10 +83,31 @@ class FlinkILoop extends ILoop {
           inputStream.close()
           outputStream.close()
         }
-        z += 1
       }
     }
+    println("I've written all files to diks for you.")
   }
+
+  /**
+   * creates jar file to /tmp/scala_shell.jar from contents of virtual directory
+   * this is happening here because maven forbids circular dependencies.
+   */
+  def createJarFile(): Unit ={
+
+    // first write files
+    writeFilesToDisk()
+
+
+    // then package them to a jar
+    val  jh = new JarHelper
+
+    val inFile = new File("/tmp/scala_shell");
+    val outFile = new File("/tmp/scala_shell.jar")
+
+
+    jh.jarDir(inFile,outFile);
+  }
+
 
 
   /**
@@ -77,11 +118,11 @@ class FlinkILoop extends ILoop {
   addThunk {
     intp.beQuietDuring {
       // automatically imports the flink scala api
-      //intp.addImports("org.apache.flink.api.scala._")
+      intp.addImports("org.apache.flink.api.scala._")
 
       // with this we can access this object in the scala shell
       intp.bindValue("intp", this)
-      intp.bindValue("env", this.flinkEnv)
+      intp.bindValue("env", this.scalaEnv)
     }
   }
 
