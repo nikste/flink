@@ -20,8 +20,7 @@ package org.apache.flink.api.scala
 
 import java.io.{File, FileOutputStream}
 
-import org.apache.flink.api.java.JarHelper
-import org.apache.flink.api.scala.shell.ScalaShellRemoteEnvironment
+import org.apache.flink.api.java.{ ScalaShellRemoteEnvironment, JarHelper}
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
 import org.apache.flink.configuration.{ConfigConstants, Configuration}
 
@@ -32,10 +31,8 @@ import scala.tools.nsc.interpreter.ILoop
  */
 class FlinkILoop extends ILoop {
 
-
-
   // flink local cluster
-  val cluster  = new LocalFlinkMiniCluster(new Configuration,false) // port offen, jobs annehmen (local actor system for akka)
+  val cluster  = new LocalFlinkMiniCluster(new Configuration,false) // open port, receive jobs (local actor system for akka)
 
   // port
   val clusterPort = cluster.getJobManagerRPCPort
@@ -66,8 +63,6 @@ class FlinkILoop extends ILoop {
 
         for (f <- fiIt) {
 
-          //println(f.path + f.name + ": isDir:" + f.isDirectory)
-
           // create directories
           //var fullPath = basePath + z + "/"
           var newfile = new File(fullPath)
@@ -97,13 +92,11 @@ class FlinkILoop extends ILoop {
     // first write files
     writeFilesToDisk()
 
-
     // then package them to a jar
     val  jh = new JarHelper
 
     val inFile = new File("/tmp/scala_shell");
     val outFile = new File("/tmp/scala_shell.jar")
-
 
     jh.jarDir(inFile,outFile);
   }

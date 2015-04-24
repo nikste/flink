@@ -2,7 +2,7 @@
  * Created by owner on 23-4-15.
  */
 
-package org.apache.flink.api.scala.shell;
+package org.apache.flink.api.java;
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -28,6 +28,7 @@ import org.apache.flink.api.java.JarHelper;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.Plan;
 import org.apache.flink.api.common.PlanExecutor;
+
 import org.apache.flink.api.java.RemoteEnvironment;
 import org.apache.flink.api.scala.FlinkILoop;
 
@@ -40,40 +41,8 @@ import java.io.File;
 
 public class ScalaShellRemoteEnvironment extends RemoteEnvironment {
 
-    //private final String host = "localhost";
-
-    //private final int port;
-
-    //private final String[] jarFiles = null;
-
-
+    // reference to Scala Shell, for access to virtual directory
     private FlinkILoop flinkILoop;
-
-    /**
-     * Creates a new RemoteEnvironment that points to the master (JobManager) described by the
-     * given host name and port.
-     *
-     * @param host The host name or address of the master (JobManager), where the program should be executed.
-     * @param port The port of the master (JobManager), where the program should be executed.
-     */
-/*
-    public ScalaShellRemoteEnvironment(String host, int port) {
-        super(host, port);
-    }
-*/
-    /**
-     * Creates a new RemoteEnvironment that points to the master (JobManager) described by the
-     * given host name and port.
-     *
-     * @param host     The host name or address of the master (JobManager), where the program should be executed.
-     * @param port     The port of the master (JobManager), where the program should be executed.
-     * @param jarFiles The JAR files with code that needs to be shipped to the cluster. If the program uses
-     *                 user-defined functions, user-defined input formats, or any libraries, those must be
-     */
-    /*
-    public ScalaShellRemoteEnvironment(String host, int port, String... jarFiles) {
-        super(host, port, jarFiles);
-    }*/
 
     /**
      * Creates new ScalaShellRemoteEnvironment that has a reference to the FlinkILoop
@@ -85,31 +54,8 @@ public class ScalaShellRemoteEnvironment extends RemoteEnvironment {
     public ScalaShellRemoteEnvironment(String host, int port, FlinkILoop flinkILoop,String... jarFiles)
     {
         super(host,port,jarFiles);
-
-        System.out.println("hostname:" + host);
-        System.out.println("port:" + port);
         this.flinkILoop = flinkILoop;
     }
-
-    /**
-     * custom execution function for shell commands, which will take precompiled jars and process them.
-     * @param jobName
-     * @param jarFiles
-     * @return
-     * @throws Exception
-     */
-    /*
-    public JobExecutionResult execute(String jobName, String... jarFiles) throws Exception {
-        Plan p = createProgramPlan(jobName);
-
-        // jarr up
-        String[] jf = {"test"};
-        //super.execute();//(jobName,jf);
-        PlanExecutor executor = PlanExecutor.createRemoteExecutor(host, port, jarFiles);
-        executor.setPrintStatusDuringExecution(p.getExecutionConfig().isSysoutLoggingEnabled());
-        return executor.executePlan(p);
-    }*/
-
 
     /**
      * compiles jars on the fly
@@ -127,21 +73,13 @@ public class ScalaShellRemoteEnvironment extends RemoteEnvironment {
         // TODO: where to clean up if necessairy ?
         flinkILoop.writeFilesToDisk();
 
-        System.out.println("superhost:" + super.getHost());
-        System.out.println("superport:" + super.getPort());
-
 
         // jarr up.
         File inFile = new File("/tmp/scala_shell/");
         File outFile = new File("/tmp/scala_shell_test.jar");
         jh.jarDir(inFile,outFile);
 
-        System.out.println("jarred up!");
-
-        System.out.println("outFile.toString = " + outFile.toString());
-
         String[] jarFiles = {outFile.toString()};
-
 
         PlanExecutor executor = PlanExecutor.createRemoteExecutor(super.getHost(), super.getPort(), jarFiles);
         executor.setPrintStatusDuringExecution(p.getExecutionConfig().isSysoutLoggingEnabled());

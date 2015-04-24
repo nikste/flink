@@ -18,6 +18,7 @@
 
 package org.apache.flink.api.scala
 
+
 import scala.tools.nsc.Settings
 
 /**
@@ -26,9 +27,6 @@ import scala.tools.nsc.Settings
 object FlinkShell {
   def main(args: Array[String]) {
     println("Starting Flink Shell:")
-
-    // standard shell:
-    //val repl = new ILoop()
 
     // custom shell
     val repl = new FlinkILoop //new MyILoop();
