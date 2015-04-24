@@ -20,29 +20,47 @@ package org.apache.flink.api.scala
 
 import java.io.{File, FileOutputStream}
 
-import org.apache.flink.api.java.{ ScalaShellRemoteEnvironment, JarHelper}
+import org.apache.flink.api.java.{ScalaShellRemoteEnvironment, JarHelper}
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
 import org.apache.flink.configuration.{ConfigConstants, Configuration}
+import org.apache.flink.util.AbstractID
 
 import scala.tools.nsc.interpreter.ILoop
 
 /**
  * Created by Nikolaas Steenbergen on 16-4-15.
  */
-class FlinkILoop extends ILoop {
-
-  // flink local cluster
-  val cluster  = new LocalFlinkMiniCluster(new Configuration,false) // open port, receive jobs (local actor system for akka)
-
-  // port
-  val clusterPort = cluster.getJobManagerRPCPort
+class FlinkILoop(val host:String,val port:Int) extends ILoop {
 
   // remote environment
-  var remoteEnv = new ScalaShellRemoteEnvironment("localhost", clusterPort, this);//new RemoteEnvironment("localhost", clusterPort)
+  val remoteEnv : ScalaShellRemoteEnvironment = {
+    val remoteEnv = new ScalaShellRemoteEnvironment(host,port,this);
+    remoteEnv
+  }//: ScalaShellRemoteEnvironment;// = new ScalaShellRemoteEnvironment("localhost", clusterPort, this);//new RemoteEnvironment("localhost", clusterPort)
 
-  val scalaEnv = new ExecutionEnvironment(remoteEnv)
+  val scalaEnv: ExecutionEnvironment = {
+    val scalaEnv = new ExecutionEnvironment(remoteEnv);
+    scalaEnv
+  } // = new ExecutionEnvironment(remoteEnv)
 
+  def this() = this("localhost", new LocalFlinkMiniCluster(new Configuration,false).getJobManagerRPCPort);
 
+  /**
+   * creates a temporary directory to store compiled console files
+   */
+  val tmpDir: File = {
+    // get unique temporary folder:
+    val abstractID: String = new AbstractID().toString
+    val tmpDir: File = new File(System.getProperty("java.io.tmpdir") + "/scala_shell_tmp-" + abstractID)
+    if (!tmpDir.exists) {
+      tmpDir.mkdir
+    }
+    tmpDir
+  }
+
+  def getTmpDir(): File = {
+    return (this.tmpDir);
+  }
   /**
    * writes contents of the compiled lines that have been executed in the shell into a "physical directory":
    * /tmp/scala_shell/
@@ -52,7 +70,7 @@ class FlinkILoop extends ILoop {
 
     var vdIt = vd.iterator
 
-    var basePath = "/tmp/scala_shell/"
+    var basePath = tmpDir.getAbsolutePath + "/scala_shell_commands/"
 
     for (fi <- vdIt) {
       if (fi.isDirectory) {
@@ -64,11 +82,9 @@ class FlinkILoop extends ILoop {
         for (f <- fiIt) {
 
           // create directories
-          //var fullPath = basePath + z + "/"
           var newfile = new File(fullPath)
           newfile.mkdirs()
           newfile = new File(fullPath + f.name)
-
 
           var outputStream = new FileOutputStream(newfile)
           var inputStream = f.input
@@ -80,26 +96,8 @@ class FlinkILoop extends ILoop {
         }
       }
     }
-    println("I've written all files to diks for you.")
   }
 
-  /**
-   * creates jar file to /tmp/scala_shell.jar from contents of virtual directory
-   * this is happening here because maven forbids circular dependencies.
-   */
-  def createJarFile(): Unit ={
-
-    // first write files
-    writeFilesToDisk()
-
-    // then package them to a jar
-    val  jh = new JarHelper
-
-    val inFile = new File("/tmp/scala_shell");
-    val outFile = new File("/tmp/scala_shell.jar")
-
-    jh.jarDir(inFile,outFile);
-  }
 
 
 
@@ -124,9 +122,39 @@ class FlinkILoop extends ILoop {
    */
   override def printWelcome() {
     echo("\n" +
-      "         \\,,,/\n" +
-      "         (o o)\n" +
-      "-----oOOo-(_)-oOOo-----")
+      "____________________§§§§§§§§§§§§§_§_§§§§§\n" +
+      "__________________§§§§_________§§§§§§§§§§§§\n" +
+      "_______________§§§§________§§§§§__§§§_____§§\n" +
+      "_____________§§§_________§§§____§§_______§§§\n" +
+      "_______§___§§____________§____§§§______§§§\n" +
+      "_____§§§§__§____§§§§§_______§§§_____§§§§\n" +
+      "_____§§§_§§§§§§§§_§§§§_____§§_____§§§\n" +
+      "_____§§_§§§§§§§§_§§_§§____ §§____ §§\n" +
+      "______§_§§§___§_§§_§§_____§§____§§\n" +
+      "______§§§___§§__§§§_______§§___ §§\n" +
+      "_____§§§§__§§§§___§§______§§___ §§\n" +
+      "____§§§§§_§§_§§§___§§_____§§____§§\n" +
+      "_§§§§§§§__§§§§§§§§§§§_____ §§____ §§\n" +
+      "_§§§_§§§_§§§§§§§_§_§§§_____§§_____§§§\n" +
+      "_§§§_§§§§§§_________§§§_____§§______§§\n" +
+      "__§§_§§§§§§§______§§§§_______§§______§§\n" +
+      "____§§§§§§§§§§§§§§§___________§§_____ §§\n" +
+      "____§§§§§§§_§§§___§§___________§______§§\n" +
+      "____§§§______§____§§___________§§_____§§\n" +
+      "_§§§§§_______§___§§§§§_________§______§§\n" +
+      "§§__§______§§§__§§___§§§______§§______§§\n" +
+      "\n" +
+      "            F L I N K                    \n") /*+
+      "§_§§§_____§§_§§§§§_____§§____§§_______§§\n" +
+      "§_§§§_____§§§§_§§_______§§_§§§_______§§\n" +
+      "_§§_§______§§_§§_________§§§________§§\n" +
+      "_§§_§§________§§_________§________§§§\n" +
+      "__§§_§§________§________§§_____§§§§§\n" +
+      "____§_§§§_______§§_____§§§§§§§§§§\n" +
+      "___§§§§§§§§§_§§_§§§§__§§\n" +
+      "_§§§§§§_§_§§§§§_§§§§___§§§\n" +
+      "_§§§§§§§§§§________§§____§§§\n" +
+      "____________________§§§_§§§§\n")*/
   }
 
 

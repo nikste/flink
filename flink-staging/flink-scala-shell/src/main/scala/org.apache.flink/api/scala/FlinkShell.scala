@@ -28,6 +28,19 @@ object FlinkShell {
   def main(args: Array[String]) {
     println("Starting Flink Shell:")
 
+    if(args.length < 4){println("No arguments given, initializing as local Environment")}
+    else { // more than one argument
+      if (args(0) == "-h" || args(0) == "-host" && args(2) == "-p" || args(2) == "-port") {
+
+        val host = args(1)
+        val port = args(3).toInt
+
+        println("starting remote server with parameters:")
+        println("host:" + host)
+        println("port:" + port)
+      }
+    }
+
     // custom shell
     val repl = new FlinkILoop //new MyILoop();
 
