@@ -27,6 +27,7 @@ import org.apache.flink.api.common.Plan;
 import org.apache.flink.api.common.PlanExecutor;
 
 import org.apache.flink.api.scala.FlinkILoop;
+import org.apache.flink.util.AbstractID;
 
 import java.io.File;
 
@@ -53,6 +54,8 @@ public class ScalaShellRemoteEnvironment extends RemoteEnvironment {
 		this.flinkILoop = flinkILoop;
 	}
 
+
+
 	/**
 	 * compiles jars on the fly
 	 *
@@ -63,19 +66,20 @@ public class ScalaShellRemoteEnvironment extends RemoteEnvironment {
 	@Override
 	public JobExecutionResult execute(String jobName) throws Exception {
 		Plan p = createProgramPlan(jobName);
+
+		// write virtual files to disk first
 		JarHelper jh = new JarHelper();
 
-		// writes all commands to disk
-		// TODO: where to clean up if necessairy ?
 		flinkILoop.writeFilesToDisk();
 
 
 		// jarr up.
-		File inFile = new File("/tmp/scala_shell/");
-		File outFile = new File("/tmp/scala_shell_test.jar");
+		File inFile = new File(flinkILoop.getTmpDir().getAbsolutePath() + "/scala_shell_commands/");
+		File outFile = new File(flinkILoop.getTmpDir().getAbsolutePath() + "/scala_shell_commands.jar");
+
 		jh.jarDir(inFile, outFile);
 
-		String[] jarFiles = {outFile.toString()};
+		String[] jarFiles = {outFile.getAbsolutePath()};
 
 		PlanExecutor executor = PlanExecutor.createRemoteExecutor(super.getHost(), super.getPort(), jarFiles);
 		executor.setPrintStatusDuringExecution(p.getExecutionConfig().isSysoutLoggingEnabled());
