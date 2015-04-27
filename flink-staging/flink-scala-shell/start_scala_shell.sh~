@@ -1,0 +1,6 @@
+#!/bin/bash
+
+java -cp ./../libs/flink-dist-SNAPSHOT-0.9.jar org.apache.flink.api.scala.FlinkShell "host" "localhorst" "port" 1000
+
+
+

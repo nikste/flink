@@ -31,21 +31,15 @@ import scala.tools.nsc.interpreter.ILoop
  * Created by Nikolaas Steenbergen on 16-4-15.
  */
 class FlinkILoop(val host:String,val port:Int) extends ILoop {
-
-  // scala_shell commands
-  private val tmpDirShell = "scala_shell_commands"
-  
-  // scala shell jar file name
-  private val tmpJarShell = "scala_shell_commands.jar"
   
   // remote environment
-  val remoteEnv : ScalaShellRemoteEnvironment = {
+  private val remoteEnv : ScalaShellRemoteEnvironment = {
     val remoteEnv = new ScalaShellRemoteEnvironment(host,port,this);
     remoteEnv
   }
 
   // local environment
-  val scalaEnv: ExecutionEnvironment = {
+  private val scalaEnv: ExecutionEnvironment = {
     val scalaEnv = new ExecutionEnvironment(remoteEnv);
     scalaEnv
   }
@@ -55,7 +49,7 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
   /**
    * creates a temporary directory to store compiled console files
    */
-  val tmpDirBase: File = {
+  private val tmpDirBase: File = {
     // get unique temporary folder:
     val abstractID: String = new AbstractID().toString
     val tmpDir: File = new File(System.getProperty("java.io.tmpdir") , "scala_shell_tmp-" + abstractID)
@@ -65,6 +59,15 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
     tmpDir
   }
 
+  // scala_shell commands
+  private val tmpDirShell : File = {
+    new File(tmpDirBase,"scala_shell_commands")
+  }
+
+  // scala shell jar file name
+  private val tmpJarShell : File = {
+    new File(tmpDirBase,"scala_shell_commands.jar")
+  }
 
 
   /**
@@ -76,24 +79,24 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
 
     var vdIt = vd.iterator
 
-    var basePath = tmpDirBase.getAbsolutePath + "/scala_shell_commands/"
+    //var basePath = tmpDirBase.getAbsolutePath + "/scala_shell_commands/"
 
     for (fi <- vdIt) {
       if (fi.isDirectory) {
-
-        var fullPath = basePath + fi.name + "/"
 
         var fiIt = fi.iterator
 
         for (f <- fiIt) {
 
-          // create directories
-          var newfile = new File(fullPath)
-          newfile.mkdirs()
-          newfile = new File(fullPath + f.name)
+          // directory for compiled line
+          val lineDir = new File(tmpDirShell.getAbsolutePath, fi.name)
+          lineDir.mkdirs()
 
-          var outputStream = new FileOutputStream(newfile)
-          var inputStream = f.input
+          // compiled classes for commands from shell
+          val writeFile = new File(lineDir.getAbsolutePath,f.name )
+          val outputStream = new FileOutputStream(writeFile)
+          val inputStream = f.input
+
           // copy file contents
           org.apache.commons.io.IOUtils.copy(inputStream, outputStream)
 
@@ -107,7 +110,7 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
   /**
    * CUSTOM START METHODS OVERRIDE:
    */
-  override def prompt = "==> "
+  override def prompt = "Scala-Flink> "
 
   addThunk {
     intp.beQuietDuring {
@@ -154,7 +157,7 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
     " NOTE: Use the prebound execution Environment \"env\" \n" +
     "       to execute your program use env.execute(\"Program name\") \n" +
     "       \n" +
-    "       use inpt to access Scala shell Repl internals\n")
+    "       use intp to access Scala shell Repl internals\n")
   }
 
 
@@ -230,12 +233,12 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
   }
   
   // get shell folder name inside tmp dir
-  def getTmpDirShell(): String = {
+  def getTmpDirShell(): File = {
     return (this.tmpDirShell)
   }
 
   // get tmp jar file name
-  def getTmpJarShell(): String = {
+  def getTmpJarShell(): File = {
     return (this.tmpJarShell)
   }
 }

@@ -69,10 +69,9 @@ public class ScalaShellRemoteEnvironment extends RemoteEnvironment {
 		flinkILoop.writeFilesToDisk();
 
 		// jarr up.
-		File inFile = new File(flinkILoop.getTmpDirBase().getAbsolutePath(), flinkILoop.getTmpDirShell());//"/scala_shell_commands/");
-		System.out.println("inFile:" + inFile.getAbsolutePath());
-		File outFile = new File(flinkILoop.getTmpDirBase().getAbsolutePath(), flinkILoop.getTmpJarShell());// "/scala_shell_commands.jar");
-		System.out.println("outFile:" + outFile.getAbsolutePath());
+		File inFile = new File( flinkILoop.getTmpDirShell().getAbsolutePath());
+		File outFile = new File( flinkILoop.getTmpJarShell().getAbsolutePath());
+
 		jh.jarDir(inFile, outFile);
 
 		String[] jarFiles = {outFile.getAbsolutePath()};
