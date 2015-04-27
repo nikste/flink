@@ -31,6 +31,7 @@ import java.util.jar.JarInputStream;
  * Provides utility services for jarring and unjarring files and directories.
  * Note that a given instance of JarHelper is not threadsafe with respect to
  * multiple jar operations.
+ * copied from http://grepcode.com/file_/repo1.maven.org/maven2/org.apache.xmlbeans/xmlbeans/2.4.0/org/apache/xmlbeans/impl/common/JarHelper.java/?v=source
  *
  * @author Patrick Calahan <pcal@bea.com>
  */
