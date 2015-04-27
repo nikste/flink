@@ -79,8 +79,6 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
 
     var vdIt = vd.iterator
 
-    //var basePath = tmpDirBase.getAbsolutePath + "/scala_shell_commands/"
-
     for (fi <- vdIt) {
       if (fi.isDirectory) {
 

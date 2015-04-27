@@ -51,7 +51,7 @@ object FlinkShell {
 	// enable this line to use scala in intellij
 	repl.settings.usejavacp.value = true
 
-	repl.createInterpreter()
+	//repl.createInterpreter()
 
 	// start scala interpreter shell
 	repl.process(repl.settings)
