@@ -32,6 +32,12 @@ import scala.tools.nsc.interpreter.ILoop
  */
 class FlinkILoop(val host:String,val port:Int) extends ILoop {
 
+  // scala_shell commands
+  private val tmpDirShell = "scala_shell_commands"
+  
+  // scala shell jar file name
+  private val tmpJarShell = "scala_shell_commands.jar"
+  
   // remote environment
   val remoteEnv : ScalaShellRemoteEnvironment = {
     val remoteEnv = new ScalaShellRemoteEnvironment(host,port,this);
@@ -49,19 +55,17 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
   /**
    * creates a temporary directory to store compiled console files
    */
-  val tmpDir: File = {
+  val tmpDirBase: File = {
     // get unique temporary folder:
     val abstractID: String = new AbstractID().toString
-    val tmpDir: File = new File(System.getProperty("java.io.tmpdir") + "/scala_shell_tmp-" + abstractID)
+    val tmpDir: File = new File(System.getProperty("java.io.tmpdir") , "scala_shell_tmp-" + abstractID)
     if (!tmpDir.exists) {
       tmpDir.mkdir
     }
     tmpDir
   }
 
-  def getTmpDir(): File = {
-    return (this.tmpDir);
-  }
+
 
   /**
    * writes contents of the compiled lines that have been executed in the shell into a "physical directory":
@@ -72,7 +76,7 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
 
     var vdIt = vd.iterator
 
-    var basePath = tmpDir.getAbsolutePath + "/scala_shell_commands/"
+    var basePath = tmpDirBase.getAbsolutePath + "/scala_shell_commands/"
 
     for (fi <- vdIt) {
       if (fi.isDirectory) {
@@ -146,7 +150,11 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
     "  _______________$$$$8888888$$\n" +
     "  _____________$$$$_$$$$$$$$$$$$$$\n" +
       "\n" +
-      "            F L I N K                    \n")
+      "            F L I N K                    \n" +
+    " NOTE: Use the prebound execution Environment \"env\" \n" +
+    "       to execute your program use env.execute(\"Program name\") \n" +
+    "       \n" +
+    "       use inpt to access Scala shell Repl internals\n")
   }
 
 
@@ -213,5 +221,21 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
           else echo("\nAbandoning crashed session.")
       }
       true
+  }
+  
+  //  getter functions:
+  // get (root temporary folder)
+  def getTmpDirBase(): File = {
+    return (this.tmpDirBase);
+  }
+  
+  // get shell folder name inside tmp dir
+  def getTmpDirShell(): String = {
+    return (this.tmpDirShell)
+  }
+
+  // get tmp jar file name
+  def getTmpJarShell(): String = {
+    return (this.tmpJarShell)
   }
 }
