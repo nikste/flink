@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *	 http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,36 +26,38 @@ import scala.tools.nsc.Settings
  */
 object FlinkShell {
   def main(args: Array[String]) {
-    println("Starting Flink Shell:")
+	println("Starting Flink Shell:")
 
-    if(args.length < 4){println("No arguments given, initializing as local Environment")}
-    else { // more than one argument
-      if (args(0) == "-h" || args(0) == "-host" && args(2) == "-p" || args(2) == "-port") {
+	if(args.length < 4){
+		println("No arguments given, initializing as local Environment")
+	}
+	else { // more than one argument
+	  if (args(0) == "-h" || args(0) == "-host" && args(2) == "-p" || args(2) == "-port") {
 
-        val host = args(1)
-        val port = args(3).toInt
+		val host = args(1)
+		val port = args(3).toInt
 
-        println("starting remote server with parameters:")
-        println("host:" + host)
-        println("port:" + port)
-      }
-    }
+		println("starting remote server with parameters:")
+		println("host:" + host)
+		println("port:" + port)
+	  }
+	}
 
-    // custom shell
-    val repl = new FlinkILoop //new MyILoop();
+	// custom shell
+	val repl = new FlinkILoop //new MyILoop();
 
-    repl.settings = new Settings()
+	repl.settings = new Settings()
 
-    // enable this line to use scala in intellij
-    repl.settings.usejavacp.value = true
+	// enable this line to use scala in intellij
+	repl.settings.usejavacp.value = true
 
-    repl.createInterpreter()
+	repl.createInterpreter()
 
-    // start scala interpreter shell
-    repl.process(repl.settings)
+	// start scala interpreter shell
+	repl.process(repl.settings)
 
-    repl.closeInterpreter()
+	repl.closeInterpreter()
 
-    print(" good bye ..")
+	print(" good bye ..")
   }
 }

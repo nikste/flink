@@ -36,12 +36,13 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
   val remoteEnv : ScalaShellRemoteEnvironment = {
     val remoteEnv = new ScalaShellRemoteEnvironment(host,port,this);
     remoteEnv
-  }//: ScalaShellRemoteEnvironment;// = new ScalaShellRemoteEnvironment("localhost", clusterPort, this);//new RemoteEnvironment("localhost", clusterPort)
+  }
 
+  // local environment
   val scalaEnv: ExecutionEnvironment = {
     val scalaEnv = new ExecutionEnvironment(remoteEnv);
     scalaEnv
-  } // = new ExecutionEnvironment(remoteEnv)
+  }
 
   def this() = this("localhost", new LocalFlinkMiniCluster(new Configuration,false).getJobManagerRPCPort);
 
@@ -61,9 +62,10 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
   def getTmpDir(): File = {
     return (this.tmpDir);
   }
+
   /**
    * writes contents of the compiled lines that have been executed in the shell into a "physical directory":
-   * /tmp/scala_shell/
+   * creates a unique temporary directory
    */
   def writeFilesToDisk(): Unit = {
     val vd = intp.virtualDirectory
@@ -98,9 +100,6 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
     }
   }
 
-
-
-
   /**
    * CUSTOM START METHODS OVERRIDE:
    */
@@ -122,39 +121,32 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
    */
   override def printWelcome() {
     echo("\n" +
-      "____________________§§§§§§§§§§§§§_§_§§§§§\n" +
-      "__________________§§§§_________§§§§§§§§§§§§\n" +
-      "_______________§§§§________§§§§§__§§§_____§§\n" +
-      "_____________§§§_________§§§____§§_______§§§\n" +
-      "_______§___§§____________§____§§§______§§§\n" +
-      "_____§§§§__§____§§§§§_______§§§_____§§§§\n" +
-      "_____§§§_§§§§§§§§_§§§§_____§§_____§§§\n" +
-      "_____§§_§§§§§§§§_§§_§§____ §§____ §§\n" +
-      "______§_§§§___§_§§_§§_____§§____§§\n" +
-      "______§§§___§§__§§§_______§§___ §§\n" +
-      "_____§§§§__§§§§___§§______§§___ §§\n" +
-      "____§§§§§_§§_§§§___§§_____§§____§§\n" +
-      "_§§§§§§§__§§§§§§§§§§§_____ §§____ §§\n" +
-      "_§§§_§§§_§§§§§§§_§_§§§_____§§_____§§§\n" +
-      "_§§§_§§§§§§_________§§§_____§§______§§\n" +
-      "__§§_§§§§§§§______§§§§_______§§______§§\n" +
-      "____§§§§§§§§§§§§§§§___________§§_____ §§\n" +
-      "____§§§§§§§_§§§___§§___________§______§§\n" +
-      "____§§§______§____§§___________§§_____§§\n" +
-      "_§§§§§_______§___§§§§§_________§______§§\n" +
-      "§§__§______§§§__§§___§§§______§§______§§\n" +
+    "  ____$$$$$$$$$$\n" +
+    "  __$$8888888888$$\n" +
+    "  $$$$888888888888$$\n" +
+    "  ____$$88888888888$$\n" +
+    "  _____ $$88888888888$$\n" +
+    "  ______$$8888888888$$\n" +
+    "  ______$$8888888888$$__________$$__$$\n" +
+    "  ___ ___$$8888888888$$__________$$$$$$\n" +
+    "  ______$$88888888$$$$__________$$8888$$\n" +
+    "  _____ _$$8888888$$$$__________$$88888888\n" +
+    "  ____ $$888888888j$$ _________$$88888( € )88\n" +
+    "___$$8888888o$$$$ ________s$$888888888888\n" +
+    "  __$$8888888h$$$$ _____s$$$$88$$88888888(®)\n" +
+    "__$$8888888a$$_____s$$888888$$888888____s//$\n" +
+    "__$$88 888n$$$$ __$$$$8888888888$$88_____$$$$\n" +
+    "___$$8888n$$ __$$8888888888888888$$$$$??_$$s\n" +
+    "  ____$$88888a$$88888888$$$$888888888888$$\n" +
+    "____$ $888888$$888888888888$$$$\n" +
+    "  _____$$88888$$888888888888888$$\n" +
+    "______$$$$8888$$8888 8888888888$$\n" +
+    "  __________$$$$8888888888888888$$\n" +
+    "______________$$888888888888$$\n" +
+    "_______________$$$$8888888$$\n" +
+    "_____________$$$$_$$$$$$$$$$$$$$\n" +
       "\n" +
-      "            F L I N K                    \n") /*+
-      "§_§§§_____§§_§§§§§_____§§____§§_______§§\n" +
-      "§_§§§_____§§§§_§§_______§§_§§§_______§§\n" +
-      "_§§_§______§§_§§_________§§§________§§\n" +
-      "_§§_§§________§§_________§________§§§\n" +
-      "__§§_§§________§________§§_____§§§§§\n" +
-      "____§_§§§_______§§_____§§§§§§§§§§\n" +
-      "___§§§§§§§§§_§§_§§§§__§§\n" +
-      "_§§§§§§_§_§§§§§_§§§§___§§§\n" +
-      "_§§§§§§§§§§________§§____§§§\n" +
-      "____________________§§§_§§§§\n")*/
+      "            F L I N K                    \n")
   }
 
 
@@ -175,11 +167,13 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
         if (!awaitInitialized()) return false
         runThunks()
       }
-      // custom catch Flink phrase:
+      // example custom catch Flink phrase:
+      /*
       if (line == "writeFlinkVD") {
         writeFilesToDisk()
         return (true)
       }
+      */
 
       if (line eq null) false // assume null means EOF
       else command(line) match {
