@@ -88,10 +88,11 @@ public class RemoteEnvironment extends ExecutionEnvironment {
 
 
 	// needed to call execute on ScalaShellRemoteEnvironment
-	public int getPort(){
+	public int getPort() {
 		return(this.port);
 	}
-	public String getHost(){
+
+	public String getHost() {
 		return(this.host);
 	}
 }
