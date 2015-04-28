@@ -18,8 +18,12 @@
 ################################################################################
 
 
+bin=`dirname "$0"`
+bin=`cd "$bin"; pwd`
 
+. "$bin"/config.sh
 
-java -cp ../lib/flink-dist-0.9-SNAPSHOT.jar org.apache.flink.api.scala.FlinkShell $@
+FLINK_CLASSPATH=`constructFlinkClassPath`
 
+java -cp "$FLINK_CLASSPATH" org.apache.flink.api.scala.FlinkShell $@
 
