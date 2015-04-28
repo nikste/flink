@@ -28,11 +28,11 @@ import org.apache.flink.util.AbstractID
 /**
  * Created by Nikolaas Steenbergen on 16-4-15.
  */
-class FlinkILoop(val host:String, val port:Int) extends ILoop {
-  
+class FlinkILoop(val host: String, val port: Int) extends ILoop {
+
   // remote environment
-  private val remoteEnv : ScalaShellRemoteEnvironment = {
-    val remoteEnv = new ScalaShellRemoteEnvironment(host,port,this)
+  private val remoteEnv: ScalaShellRemoteEnvironment = {
+    val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
     remoteEnv
   }
 
@@ -48,7 +48,9 @@ class FlinkILoop(val host:String, val port:Int) extends ILoop {
   private val tmpDirBase: File = {
     // get unique temporary folder:
     val abstractID: String = new AbstractID().toString
-    val tmpDir: File = new File(System.getProperty("java.io.tmpdir") , "scala_shell_tmp-" + abstractID)
+    val tmpDir: File = new File(
+      System.getProperty("java.io.tmpdir"),
+      "scala_shell_tmp-" + abstractID)
     if (!tmpDir.exists) {
       tmpDir.mkdir
     }
@@ -56,19 +58,19 @@ class FlinkILoop(val host:String, val port:Int) extends ILoop {
   }
 
   // scala_shell commands
-  private val tmpDirShell : File = {
-    new File(tmpDirBase,"scala_shell_commands")
+  private val tmpDirShell: File = {
+    new File(tmpDirBase, "scala_shell_commands")
   }
 
   // scala shell jar file name
-  private val tmpJarShell : File = {
-    new File(tmpDirBase,"scala_shell_commands.jar")
+  private val tmpJarShell: File = {
+    new File(tmpDirBase, "scala_shell_commands.jar")
   }
 
 
   /**
-   * writes contents of the compiled lines that have been executed in the shell into a "physical directory":
-   * creates a unique temporary directory
+   * writes contents of the compiled lines that have been executed in the shell into a
+   * "physical directory": creates a unique temporary directory
    */
   def writeFilesToDisk(): Unit = {
     val vd = intp.virtualDirectory
@@ -87,7 +89,7 @@ class FlinkILoop(val host:String, val port:Int) extends ILoop {
           lineDir.mkdirs()
 
           // compiled classes for commands from shell
-          val writeFile = new File(lineDir.getAbsolutePath,f.name )
+          val writeFile = new File(lineDir.getAbsolutePath, f.name)
           val outputStream = new FileOutputStream(writeFile)
           val inputStream = f.input
 
@@ -121,7 +123,7 @@ class FlinkILoop(val host:String, val port:Int) extends ILoop {
    */
   override def printWelcome() {
     echo(
-    """
+      """
     $$$$$$$$$$
   $$8888888888$$
 $$$$888888888888$$
@@ -154,83 +156,17 @@ NOTE: Use the prebound Execution Environment "env" to read data and execute your
   * env.execute("Program name")
 
 HINT: You can use print() on a DataSet to print the contents to this shell.
-       """)
-    
+      """)
+
 
   }
 
-
-  /**
-   * We override this for custom Flink commands
-   * The main read-eval-print loop for the repl.  It calls
-   * command() for each line of input, and stops when
-   * command() returns false.
-   */
-  override def loop() {
-    def readOneLine() = {
-      out.flush()
-      in readLine prompt
-    }
-    // return false if repl should exit
-    def processLine(line: String): Boolean = {
-      if (isAsync) {
-        if (!awaitInitialized()) return false
-        runThunks()
-      }
-      // example custom catch Flink phrase:
-      /*
-      if (line == "writeFlinkVD") {
-        writeFilesToDisk()
-        return (true)
-      }
-      */
-
-      if (line eq null) false // assume null means EOF
-      else command(line) match {
-        case Result(false, _) => false
-        case Result(_, Some(finalLine)) => addReplay(finalLine); true
-        case _ => true
-      }
-    }
-    def innerLoop() {
-      if (try processLine(readOneLine()) catch crashRecovery)
-        innerLoop()
-    }
-    innerLoop()
-  }
-
-  /**
-   * needs to be redeclared because its declared private by the parent.
-   */
-  private val crashRecovery: PartialFunction[Throwable, Boolean] = {
-    case ex: Throwable =>
-      echo(intp.global.throwableAsString(ex))
-
-      ex match {
-        case _: NoSuchMethodError | _: NoClassDefFoundError =>
-          echo("\nUnrecoverable error.")
-          throw ex
-        case _ =>
-          def fn(): Boolean =
-            try in.readYesOrNo(replayQuestionMessage, {
-              echo("\nYou must enter y or n."); fn()
-            })
-            catch {
-              case _: RuntimeException => false
-            }
-
-          if (fn()) replay()
-          else echo("\nAbandoning crashed session.")
-      }
-      true
-  }
-  
   //  getter functions:
   // get (root temporary folder)
   def getTmpDirBase(): File = {
     return (this.tmpDirBase);
   }
-  
+
   // get shell folder name inside tmp dir
   def getTmpDirShell(): File = {
     return (this.tmpDirShell)
