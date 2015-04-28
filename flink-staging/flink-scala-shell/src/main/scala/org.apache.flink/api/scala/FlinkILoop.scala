@@ -20,31 +20,27 @@ package org.apache.flink.api.scala
 
 import java.io.{File, FileOutputStream}
 
-import org.apache.flink.api.java.{ScalaShellRemoteEnvironment, JarHelper}
-import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
-import org.apache.flink.configuration.{ConfigConstants, Configuration}
-import org.apache.flink.util.AbstractID
-
 import scala.tools.nsc.interpreter.ILoop
+
+import org.apache.flink.api.java.ScalaShellRemoteEnvironment
+import org.apache.flink.util.AbstractID
 
 /**
  * Created by Nikolaas Steenbergen on 16-4-15.
  */
-class FlinkILoop(val host:String,val port:Int) extends ILoop {
+class FlinkILoop(val host:String, val port:Int) extends ILoop {
   
   // remote environment
   private val remoteEnv : ScalaShellRemoteEnvironment = {
-    val remoteEnv = new ScalaShellRemoteEnvironment(host,port,this);
+    val remoteEnv = new ScalaShellRemoteEnvironment(host,port,this)
     remoteEnv
   }
 
   // local environment
   private val scalaEnv: ExecutionEnvironment = {
-    val scalaEnv = new ExecutionEnvironment(remoteEnv);
+    val scalaEnv = new ExecutionEnvironment(remoteEnv)
     scalaEnv
   }
-
-  def this() = this("localhost", new LocalFlinkMiniCluster(new Configuration,false).getJobManagerRPCPort);
 
   /**
    * creates a temporary directory to store compiled console files
@@ -116,7 +112,6 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
       intp.addImports("org.apache.flink.api.scala._")
 
       // with this we can access this object in the scala shell
-      intp.bindValue("intp", this)
       intp.bindValue("env", this.scalaEnv)
     }
   }
@@ -125,37 +120,43 @@ class FlinkILoop(val host:String,val port:Int) extends ILoop {
    * custom welcome message
    */
   override def printWelcome() {
-    echo("\n" +
-    "  ____$$$$$$$$$$\n" +
-    "  __$$8888888888$$\n" +
-    "  $$$$888888888888$$\n" +
-    "  ____$$88888888888$$\n" +
-    "  _____$$88888888888$$\n" +
-    "  ______$$8888888888$$\n" +
-    "  ______$$8888888888$$__________$$__$$\n" +
-    "  ______$$8888888888$$__________$$$$$$\n" +
-    "  ______$$88888888$$$$__________$$8888$$\n" +
-    "  ______$$8888888$$$$__________$$88888888\n" +
-    "  ____$$888888888j$$_________$$88888( € )88\n" +
-    "  ___$$8888888o$$$$________s$$888888888888\n" +
-    "  __$$8888888h$$$$_____s$$$$88$$88888888(®)\n" +
-    "  __$$8888888a$$_____s$$888888$$888888____s//$\n" +
-    "  __$$88888n$$$$__$$$$8888888888$$88_____$$$$\n" +
-    "  ___$$8888n$$__$$8888888888888888$$$$$??_$$s\n" +
-    "  ____$$88888a$$88888888$$$$888888888888$$\n" +
-    "  ____$$888888$$888888888888$$$$\n" +
-    "  _____$$88888$$888888888888888$$\n" +
-    "  ______$$$$8888$$88888888888888$$\n" +
-    "  __________$$$$8888888888888888$$\n" +
-    "  ______________$$888888888888$$\n" +
-    "  _______________$$$$8888888$$\n" +
-    "  _____________$$$$_$$$$$$$$$$$$$$\n" +
-      "\n" +
-      "            F L I N K                    \n" +
-    " NOTE: Use the prebound execution Environment \"env\" \n" +
-    "       to execute your program use env.execute(\"Program name\") \n" +
-    "       \n" +
-    "       use intp to access Scala shell Repl internals\n")
+    echo(
+    """
+    $$$$$$$$$$
+  $$8888888888$$
+$$$$888888888888$$
+    $$88888888888$$
+     $$88888888888$$
+      $$8888888888$$
+      $$8888888888$$          $$  $$
+      $$8888888888$$          $$$$$$
+      $$88888888$$$$          $$8888$$
+      $$8888888$$$$          $$88888888
+    $$888888888j$$         $$88888( € )88
+   $$8888888o$$$$        s$$888888888888
+  $$8888888h$$$$     s$$$$88$$88888888(®)
+  $$8888888a$$     s$$888888$$888888    s//$
+  $$88888n$$$$  $$$$8888888888$$88     $$$$
+   $$8888n$$  $$8888888888888888$$$$$?? $$s
+    $$88888a$$88888888$$$$888888888888$$
+    $$888888$$888888888888$$$$
+     $$88888$$888888888888888$$
+      $$$$8888$$88888888888888$$
+          $$$$8888888888888888$$
+              $$888888888888$$
+               $$$$8888888$$
+             $$$$ $$$$$$$$$$$$$$
+
+            F L I N K
+
+NOTE: Use the prebound Execution Environment "env" to read data and execute your program:
+  * env.readTextFile("/path/to/data")
+  * env.execute("Program name")
+
+HINT: You can use print() on a DataSet to print the contents to this shell.
+       """)
+    
+
   }
 
 

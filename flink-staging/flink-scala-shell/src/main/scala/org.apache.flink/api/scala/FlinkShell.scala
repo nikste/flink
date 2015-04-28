@@ -21,43 +21,57 @@ package org.apache.flink.api.scala
 
 import scala.tools.nsc.Settings
 
+import org.apache.flink.configuration.Configuration
+import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
+
 /**
  * Created by owner on 22-4-15.
  */
 object FlinkShell {
-  def main(args: Array[String]) {
-	println("Starting Flink Shell:")
+	def main(args: Array[String]) {
+		println("Starting Flink Shell:")
 
-	if(args.length < 4){
-		println("No arguments given, initializing as local Environment")
+		var cluster: LocalFlinkMiniCluster = null
+
+		val (host, port) = if (args.length < 4) {
+			println("No arguments given, starting local cluster.")
+			cluster = new LocalFlinkMiniCluster(new Configuration, false)
+
+			("localhost", cluster.getJobManagerRPCPort)
+		} else {
+			// more than one argument
+			if (args(0) == "-h" || args(0) == "-host" && args(2) == "-p" || args(2) == "-port") {
+
+				val host = args(1)
+				val port = args(3).toInt
+
+				println(s"Connecting to remote server (host: $host, port: $port).")
+
+				(host, port)
+			} else {
+				throw new RuntimeException("Could not parse program arguments.")
+			}
+		}
+
+		// custom shell
+		val repl = new FlinkILoop(host, port) //new MyILoop();
+
+		repl.settings = new Settings()
+
+		// enable this line to use scala in intellij
+		repl.settings.usejavacp.value = true
+
+		//repl.createInterpreter()
+
+		// start scala interpreter shell
+		repl.process(repl.settings)
+
+		repl.closeInterpreter()
+
+		if (cluster != null) {
+			cluster.stop()
+		}
+
+		print(" good bye ..")
 	}
-	else { // more than one argument
-	  if (args(0) == "-h" || args(0) == "-host" && args(2) == "-p" || args(2) == "-port") {
-
-		val host = args(1)
-		val port = args(3).toInt
-
-		println("starting remote server with parameters:")
-		println("host:" + host)
-		println("port:" + port)
-	  }
-	}
-
-	// custom shell
-	val repl = new FlinkILoop //new MyILoop();
-
-	repl.settings = new Settings()
-
-	// enable this line to use scala in intellij
-	repl.settings.usejavacp.value = true
-
-	//repl.createInterpreter()
-
-	// start scala interpreter shell
-	repl.process(repl.settings)
-
-	repl.closeInterpreter()
-
-	print(" good bye ..")
-  }
 }
