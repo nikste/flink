@@ -24,32 +24,56 @@ import org.apache.flink.configuration.Configuration
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
 
 /**
- * Created by owner on 22-4-15.
+ * Created by Nikolaas Steenbergen on 22-4-15.
  */
+
+
 object FlinkShell {
+
   def main(args: Array[String]) {
+
+    // scopt, command line arguments
+    case class Config(port: Int = -1,
+                      host: String = "none")
+    val parser = new scopt.OptionParser[Config] ("scopt") {
+      head ("scopt", "3.x")
+      opt[Int] ('p', "port") action {
+        (x, c) =>
+          c.copy (port = x)
+      } text ("port specifies port of running JobManager")
+      opt[(String)] ('h',"host") action {
+        case (x, c) =>
+          c.copy (host = x)
+      }  text ("host specifies host name of running JobManager")
+      help("help") text("prints this usage text")
+
+    }
+
+
+    // parse arguments
+    parser.parse (args, Config () ) map {
+      config =>
+        startShell(config.host,config.port);
+    } getOrElse {
+      // arguments are bad, usage message will have been displayed
+      println("Could not parse program arguments")
+    }
+  }
+
+
+  def startShell(userHost : String, userPort : Int): Unit ={
     println("Starting Flink Shell:")
 
     var cluster: LocalFlinkMiniCluster = null
 
-    val (host, port) = if (args.length < 4) {
-      println("No arguments given, starting local cluster.")
+    val (host,port) = if (userHost == "none" || userPort == -1 ) // either port or userhost not specified by user, create new minicluster
+    {
+      println("Creating new local server")
       cluster = new LocalFlinkMiniCluster(new Configuration, false)
-
-      ("localhost", cluster.getJobManagerRPCPort)
+      ("localhost",cluster.getJobManagerRPCPort)
     } else {
-      // more than one argument
-      if (args(0) == "-h" || args(0) == "-host" && args(2) == "-p" || args(2) == "-port") {
-
-        val host = args(1)
-        val port = args(3).toInt
-
-        println(s"Connecting to remote server (host: $host, port: $port).")
-
-        (host, port)
-      } else {
-        throw new RuntimeException("Could not parse program arguments.")
-      }
+      println(s"Connecting to remote server (host: $userHost, port: $userPort).")
+      (userHost, userPort)
     }
 
     // custom shell
