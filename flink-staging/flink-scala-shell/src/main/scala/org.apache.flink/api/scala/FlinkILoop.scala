@@ -18,9 +18,9 @@
 
 package org.apache.flink.api.scala
 
-import java.io.{File, FileOutputStream}
+import java.io.{BufferedReader, File, FileOutputStream}
 
-import scala.tools.nsc.interpreter.ILoop
+import scala.tools.nsc.interpreter._
 
 import org.apache.flink.api.java.ScalaShellRemoteEnvironment
 import org.apache.flink.util.AbstractID
@@ -28,8 +28,15 @@ import org.apache.flink.util.AbstractID
 /**
  * Created by Nikolaas Steenbergen on 16-4-15.
  */
-class FlinkILoop(val host: String, val port: Int) extends ILoop {
+class FlinkILoop(val host: String, val port: Int, in0: Option[BufferedReader], override protected val out: JPrintWriter) extends ILoop {
 
+  def this(host:String, port:Int, in0: BufferedReader, out: JPrintWriter){
+    this(host:String, port:Int, Some(in0), out)
+  }
+
+  def this(host:String, port:Int){
+    this(host:String,port: Int,None, new JPrintWriter(Console.out, true))
+  }
   // remote environment
   private val remoteEnv: ScalaShellRemoteEnvironment = {
     val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
@@ -157,8 +164,6 @@ NOTE: Use the prebound Execution Environment "env" to read data and execute your
 
 HINT: You can use print() on a DataSet to print the contents to this shell.
       """)
-
-
   }
 
   //  getter functions:
