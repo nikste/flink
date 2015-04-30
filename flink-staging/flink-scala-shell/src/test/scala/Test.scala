@@ -3,14 +3,11 @@
 import java.io._
 import java.net.URLClassLoader
 
-import org.apache.flink.api.scala.FlinkILoop
+import scala.collection.mutable.ArrayBuffer
 
+import org.apache.flink.api.scala.FlinkILoop
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
-
-import scala.collection.mutable.ArrayBuffer
-import scala.tools.nsc.{Global, Settings}
-import scala.tools.nsc.interpreter.{InteractiveReader, JLineReader, SimpleReader}
 
 /**
  * Created by owner on 29-4-15.
@@ -23,11 +20,12 @@ object Test {
       """
         val text = env.fromElements("To be, or not to be,--that is the question:--","Whether 'tis nobler in the mind to suffer", "The slings and arrows of outrageous fortune","Or to take arms against a sea of troubles,")
         val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.groupBy(0).sum(1)
-        counts.print()
-        exit
+        val a = counts.collect()
       """.stripMargin
 
     val output : String = processInShell(input)
+
+    println("Printing result from shell:")
     println(output)
     print("exiting main")
   }
@@ -41,6 +39,9 @@ object Test {
 
       val in = new BufferedReader(new StringReader(input + "\n"))
       val out = new StringWriter()
+      val baos = new ByteArrayOutputStream()
+
+      System.setOut(new PrintStream(baos))
 
       // new local cluster
       val cluster = new LocalFlinkMiniCluster(new Configuration, false)
@@ -80,9 +81,7 @@ object Test {
       // closing interpreter
       repl.closeInterpreter
       //repl.interpretStartingWith(input);
-      println("reached end")
-      println("contents out:" + out.toString)
-      return (out.toString)
+      out.toString + baos.toString()
       /*
       repl.settings = new Settings()
 

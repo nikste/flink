@@ -28,7 +28,7 @@ import org.apache.flink.util.AbstractID
 /**
  * Created by Nikolaas Steenbergen on 16-4-15.
  */
-class FlinkILoop(val host: String, val port: Int, in0: Option[BufferedReader], override protected val out: JPrintWriter) extends ILoop {
+class FlinkILoop(val host: String, val port: Int, in0: Option[BufferedReader], out0: JPrintWriter) extends ILoop(in0, out0) {
 
   def this(host:String, port:Int, in0: BufferedReader, out: JPrintWriter){
     this(host:String, port:Int, Some(in0), out)

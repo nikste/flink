@@ -56,6 +56,7 @@ class ScalaShellITSuite(mode: TestExecutionMode) extends MultipleProgramsTestBas
     // return result of input
     return out.toString
   }
+
   /**
    * test the creation of a local environment (if not given any connection parameters: host and port)
    */
