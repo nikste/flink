@@ -110,7 +110,7 @@ object StandardScaler {
   // ====================================== Operations =============================================
 
   /** Trains the [[org.apache.flink.ml.preprocessing.StandardScaler]] by learning the mean and
-    * standard deviation of the training data. These values are used inthe transform step
+    * standard deviation of the training data. These values are used in the transform step
     * to transform the given input data.
     *
     * @tparam T Input data type which is a subtype of [[Vector]]
