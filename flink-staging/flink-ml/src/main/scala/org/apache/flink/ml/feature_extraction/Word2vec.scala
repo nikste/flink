@@ -514,7 +514,7 @@ object Word2vec {
   /**
    * initializes neural network to be trained to output word vectors
    */
-  def initNetwork(resultingParameters : ParameterMap): Unit ={
+  def initNetwork(resultingParameters : ParameterMap): (Array[Float],Array[Float]) ={
     //val initRandom = new XORShiftRandom(seed)
     
     val vectorSizeOpt = resultingParameters.get[Int](VectorSize)
@@ -533,16 +533,33 @@ object Word2vec {
     }
 
     val initRandom = new XORShiftRandom(seed)
-    val syn0Global =
+    val syn0Global : Array[Float] =
       Array.fill[Float](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize)
-    val syn1Global = new Array[Float](vocabSize * vectorSize)
-    val learningRate = resultingParameters.get[Double](LearningRate)
-    var alpha = learningRate
+    val syn1Global : Array[Float]= new Array[Float](vocabSize * vectorSize)
+    
+    
+    (syn0Global,syn1Global)
   }
   /**
    * trains network 
    */
-  def trainNetwork(): Unit ={
+  def trainNetwork(resultingParameters: ParameterMap, syn0Global:Array[Float],syn1Global:Array[Float]): Unit ={
+    var learningRate = resultingParameters.get[Double](LearningRate)
+
+    var alpha : Double = 0
+
+    learningRate match{
+      case Some(lR) => alpha = lR
+      case None => throw new Exception("Could not retrieve learning Rate, none specified?")
+    }
+    
+   var numI = resultingParameters.get[Int](NumIterations)
+    var numIterations = 0
+    numI match{
+      case Some(ni) => numIterations = ni
+      case None => throw new Exception("Could not retrieve number of Iterations, none specified?")
+    }
+    
     
   }
   /**
