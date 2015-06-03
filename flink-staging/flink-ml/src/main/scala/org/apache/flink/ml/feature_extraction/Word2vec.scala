@@ -170,8 +170,26 @@ case class VocabWord(
                               var point: Array[Int],
                               var code: Array[Int],
                               var codeLen: Int
-                              )
+                              ){
+  override def toString(): String ={
+    var points = ""
+    for (i <- 0 to point.length - 1){points += point(i) + ","}
+    points += point(point.length - 1)
 
+    var codes = ""
+    for (i <- 0 to code.length - 1){codes += code(i) + ","}
+    codes += code(code.length - 1)
+
+    var res = "VocabWord(" +
+    " word:" + word +
+    " cn:" + cn +
+    " point:" + points +
+    " code:" + codes +
+    " codeLen:" + codeLen +")"
+    
+    res
+  }
+}
 /**
  * :: Experimental ::
  * Word2Vec creates vector representation of words in a text corpus.
@@ -229,7 +247,7 @@ class Word2vec extends Transformer[Word2vec] {
 
   // sparks internal vars
   private var seed = 1.toLong
-  //TODO: chang to random //Utils.random.nextLong()
+  //TODO: change to random //Utils.random.nextLong()
   private val EXP_TABLE_SIZE = 1000
   private val MAX_EXP = 6
   private val MAX_CODE_LENGTH = 40
@@ -471,7 +489,10 @@ object Word2vec {
       }
       a += 1
     }
-    vocab
+    
+    var vocab2 = vocab.getExecutionEnvironment.fromCollection(vocabCollected)
+    vocab2.print()
+    vocab2
   }
 
   
@@ -560,7 +581,10 @@ object Word2vec {
       case None => throw new Exception("Could not retrieve number of Iterations, none specified?")
     }
     
-    
+    for(k <- 1 to numIterations)
+      {
+        
+      }
   }
   /**
    * Main training function, receives DataSet[String] (of words(!), change this?)
@@ -587,9 +611,9 @@ object Word2vec {
       var sentencesInNumbers : DataSet[Array[Int]] = convertSentencesToHuffman(input,hash) // this should be list of sentences (without period mark), with words separated by whitespace
     
       //init net?
-      initNetwork(resultingParameters)
+      var (syn0Global,syn1Global) = initNetwork(resultingParameters)
       
-      //trainNetwork()
+      trainNetwork(resultingParameters,syn0Global,syn1Global)
       // negative sampling -> use unigram
       
       //skipgram ?
