@@ -138,8 +138,9 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     val baos = new ByteArrayOutputStream()
 
     val oldOut = System.out
-    System.setOut(new PrintStream(baos))
-
+    val output = new PrintStream(baos)
+    System.setOut(output)
+  
     // new local cluster
     val host = "localhost"
     val port = cluster match {
@@ -181,7 +182,8 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
     // reprint because ScalaTest fails if we don't
     print(stdout)
-
+    
+    output.flush()
     out.toString + stdout
   }
 
