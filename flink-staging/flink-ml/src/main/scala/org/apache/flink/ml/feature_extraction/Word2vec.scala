@@ -28,7 +28,7 @@ import org.apache.flink.api.java.aggregation.Aggregations
 import org.apache.flink.api.scala._
 import org.apache.flink.ml.common.{Parameter, ParameterMap}
 import org.apache.flink.ml.feature_extraction.Word2vec._
-import org.apache.flink.ml.math.{Vector, BreezeVectorConverter}
+import org.apache.flink.ml.math.{BLAS, Vector, BreezeVectorConverter}
 import org.apache.flink.ml.pipeline.{TransformOperation, FitOperation, Transformer}
 import org.apache.flink.util.Collector
 
@@ -564,14 +564,24 @@ object Word2vec {
   /**
    * trains network 
    */
-  def trainNetwork(resultingParameters: ParameterMap, syn0Global:Array[Float],syn1Global:Array[Float]): Unit ={
-    var learningRate = resultingParameters.get[Double](LearningRate)
-
-    var alpha : Double = 0
-
-    learningRate match{
-      case Some(lR) => alpha = lR
+  def trainNetwork(resultingParameters: ParameterMap, syn0Global:Array[Float],syn1Global:Array[Float], sentencesInNumbers: DataSet[Array[Int]], vocabDS : DataSet[VocabWord]): Unit ={
+    
+    //TODO: keep as DataSet
+    println("collecting and training Network")
+    val vocab : Array[VocabWord] = vocabDS.collect().toArray[VocabWord]
+    println("collected!")
+    var lr = resultingParameters.get[Double](LearningRate)
+    var learningRate : Double = 0
+    lr match{
+      case Some(lR) => learningRate = lR
       case None => throw new Exception("Could not retrieve learning Rate, none specified?")
+    }
+    
+    var ws = resultingParameters.get[Int](WindowSize)
+    var windowSize : Int = 0
+    ws match{
+      case Some(wS) => windowSize = wS
+      case None => throw new Exception("Could not retrieve window Size,none specified?")
     }
     
    var numI = resultingParameters.get[Int](NumIterations)
@@ -580,10 +590,142 @@ object Word2vec {
       case Some(ni) => numIterations = ni
       case None => throw new Exception("Could not retrieve number of Iterations, none specified?")
     }
+    numIterations = 100000
     
-    for(k <- 1 to numIterations)
-      {
+    
+    var vSize = resultingParameters.get[Int](VectorSize)
+    var vectorSize = 0
+    vSize match{
+      case Some(vS) => vectorSize = vS
+      case None => throw new Exception("Could not retrieve vector size of hidden layer, none specified?")
+    }
+    var word_count : Long = 0
+    var last_word_count : Long = 0
+    var alpha : Double = 0
+    // global var?
+    var word_count_actual : Long = 0;
+    var iter = 5
+    
+    
+    sentencesInNumbers.getExecutionEnvironment.getConfig.disableSysoutLogging()
+    
+    val expTable = createExpTable()
+    // training Iterations
+    // 1. we select one word as given by skipgram and counter origin as input
+    // 2. we select one (random) word as given by skipgram window and position in sentence as training Target.
+    // 3. -> compute gradient
+    // 4. do backpropagation (for one output node only?)
+    // 5. repeat 1 (do it for all sentences)
+    for(k <- 1 to numIterations){
+        var average_abs_error : Double = 0
+        var its = 0
         
+        println(" " + k + " of " + numIterations + " is " + (k/numIterations * 100.0) + " % ")
+        val random = new XORShiftRandom(seed ^ /*((idx + 1) << 16) ^*/ ((-k - 1) << 8))
+        // set learning rate TODO: check if word count last etc is really necessairy
+      alpha = 1
+        if (word_count - last_word_count > 10000){
+          word_count_actual += word_count - last_word_count
+          println("word_count_actual += word_count - last_word_count" + word_count_actual)
+          last_word_count = word_count;
+          
+          
+          //learning Rate with discount
+          alpha = learningRate.toDouble * ( 1 - word_count_actual.toDouble/ (iter * vocabSize + 1).toDouble)
+          // dont let it get too small
+          if (alpha < learningRate * 0.0001) {
+            alpha = learningRate.toDouble * 0.0001
+          }
+        }
+      println("alpha:" + alpha)
+        //alpha = 0.1 //learningRate
+        var sentence_position = 0
+        // discard sentences with length 0, subsampling
+        // TODO: remove and make distributed
+        var it = sentencesInNumbers.collect.iterator
+        var sentence : Array[Int] = it.next()
+        
+        var pos = 0
+        //for (i <- 0 to sentence.length - 1) {println(sentence(i))}
+        // go through sentence word by word
+        while (pos < sentence.length){
+          val word = sentence(pos)
+        
+          // incorporate Skipgram (bi-gram with skipped words inbetween)
+          var skipGramRandomWindowSize = random.nextInt(windowSize)
+          
+          var currentOutputWordWindowOffsetIdx = skipGramRandomWindowSize
+          
+          while (currentOutputWordWindowOffsetIdx < windowSize * 2 + 1 - skipGramRandomWindowSize){
+            // check if input and output word are different ( we only want to estimate context here)
+            if (currentOutputWordWindowOffsetIdx != windowSize){
+              val currentOutputWordIdx = pos - windowSize + currentOutputWordWindowOffsetIdx
+              
+              if(currentOutputWordIdx >= 0 && currentOutputWordIdx < sentence.length){
+                  val lastWord = sentence(currentOutputWordIdx)
+                  //println("lastWord= " + lastWord)
+                  // input transformation matrix index
+                  val l1 = lastWord * vectorSize
+                  
+                  // error gradient?
+                  val neu1e = new Array[Float](vectorSize) 
+                  //Hierarchical Softmax?
+                  
+                  var numTreeDecisions = 0
+                  while( numTreeDecisions < vocab(word).codeLen){
+                    val inner = vocab(word).point(numTreeDecisions)
+                    
+                    // vector offset output transformation matrix
+                    val l2 : Int = inner * vectorSize
+                    
+                    var f : Double = 0 
+                    //propagate hidden -> output
+                    for(c <- 0 to vectorSize)
+                    {
+                      //println("wordcount=" + vocabSize)
+                      f += syn0Global(c + l1) * syn1Global(c + l2)
+                      //println("c="+c+" syn0Global("+c+" + "+l1+")="+syn0Global(c+l1)+" * syn1Global("+c+" + " + l2+")=" + syn1Global(c+ l2) + "=" + syn0Global(c + l1) * syn1Global(c + l2))
+                    }
+                    //println("output=" + f)
+
+                    // check activation
+                    if (f > -MAX_EXP && f < MAX_EXP) {
+                      val ind = ((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2.0)).toInt
+                      f = expTable(ind)
+                      //println("i=" + ind + " f= " + f)
+                      
+                      // gradient
+                      var g = ((1 - vocab(word).code(numTreeDecisions) - f) ).toFloat
+                      average_abs_error += math.abs(g)
+                      g =  (g * alpha).toFloat
+                      its += 1
+                      //println("alpha = " + alpha)
+                      //println("g=" + g)// + " vocab(" + word + ").code(" + numTreeDecisions + ") = " + vocab(word).code(numTreeDecisions)) 
+                      //println("g = " + g)
+                      // Propagate errors output -> hidden
+                      //print(vectorSize + " = " + neu1e.length)
+                      for (i <- 0 to vectorSize - 1) neu1e(i) += g * syn1Global(i + l2);
+                      // Learn weights hidden -> output
+                      for (i <- 0 to vectorSize - 1) syn1Global(i + l2) += g * syn0Global(i + l1);
+                      
+                      
+                    }
+                    // Learn weights input -> hidden
+                    
+                    // check output:
+                    numTreeDecisions += 1
+                  }
+                for (i <- 0 to vectorSize - 1) syn0Global(i + l1) += neu1e(i);
+                }
+              
+            }
+            currentOutputWordWindowOffsetIdx +=1
+          }
+          pos += 1
+        }
+        
+        
+        println("sum error:" +  average_abs_error)//its.toDouble)
       }
   }
   /**
@@ -603,7 +745,7 @@ object Word2vec {
       // Get different words and sort them for their frequency
       var vocab_hash = learnVocab(input,minCount)
       //huffman tree
-      var vocab = vocab_hash._1
+      var vocab : DataSet[VocabWord] = vocab_hash._1
       var hash = vocab_hash._2
       vocab = createBinaryTree(vocab)
       // convert words in sentences
@@ -613,7 +755,7 @@ object Word2vec {
       //init net?
       var (syn0Global,syn1Global) = initNetwork(resultingParameters)
       
-      trainNetwork(resultingParameters,syn0Global,syn1Global)
+      trainNetwork(resultingParameters,syn0Global,syn1Global,sentencesInNumbers,vocab)
       // negative sampling -> use unigram
       
       //skipgram ?
