@@ -56,7 +56,7 @@ object test {
   "l l l l l l",
   "m m m m m")*/
     //env.getConfig.disableSysoutLogging()
-    var inputData = env.readTextFile("/home/nikste/Downloads/t4_small_small_small_small")
+    var inputData = env.readTextFile("/home/nikste/Downloads/t4_small")
     inputData = inputData.flatMap(_.split("\\."))
     //println("inputdatacoutn" + inputData.count()) 
     //inputData.print()
