@@ -21,6 +21,7 @@ package org.apache.flink.api.scala
  * Created by nikste on 5/28/15.
  */
 
+import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.ml.feature_extraction.Word2vec
 
 object test {
@@ -55,11 +56,54 @@ object test {
   "k k k k k k k",
   "l l l l l l",
   "m m m m m")*/
+    
     //env.getConfig.disableSysoutLogging()
-    var inputData = env.readTextFile("/home/nikste/Downloads/t4_small")
-    inputData = inputData.flatMap(_.split("\\."))
+    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/t4_small_small_small_small")
+    //var inputData = env.fromElements("I go home","I go home","I go kitchen","I go kitchen","I home my")
+    //env.getConfig.disableSysoutLogging() 
+    
+    //var inputData = env.fromElements("A word in a sentence . . i.e. fucking stupid")
+    //inputData = inputData.map(_.split(' '))
+    println(inputData.count)
+    //println("before::::")
+    //inputData.print
+    /*
+    inputData = inputData.reduce((a,b) => a +" " +b)
+    inputData = inputData.flatMap(_.split("\\.")).flatMap(_.split(' '))
+    inputData = inputData.filter(_.length > 5)
+    */
+    inputData = inputData.flatMap(_.split("\\.")).map(_.replaceAll("\\s+"," ")).filter(_.length > 20)//.flatMap(_.split(" "))
+    
+    println("after::::")
+    //inputData.print
+    env.getConfig.disableSysoutLogging()
+    
+    val w2v = Word2vec()
+    w2v.fit(inputData)
+    
+    
+    
+/*
+     inputData = inputData.filter(_.length > 20)
+   println(inputData.count)
+  
+    env.getConfig.disableSysoutLogging()
+    //inputData = inputData.filter(_.nonEmpty).filter(_.length > 2)
+
+    //inputData.print
+    /*
+    println(inputData.count)
+    //inputData = inputData.map(_.filterNot(_.forall(_.isEmpty)))
+    inputData = inputData.filter(_.length > 5)
+    println(inputData.count)
+    
+    
+    inputData.print()
+    */
     //println("inputdatacoutn" + inputData.count()) 
     //inputData.print()
+    
+    
     val w2v = Word2vec()
     w2v.fit(inputData)
   
@@ -68,5 +112,6 @@ object test {
     //println("rawLines.count() = ")
     //println(linesDS.print())
     println("end")
+*/
 }
 }

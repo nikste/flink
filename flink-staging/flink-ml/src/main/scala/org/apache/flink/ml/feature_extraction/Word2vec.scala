@@ -19,6 +19,7 @@ package org.apache.flink.ml.feature_extraction
 
 
 import java.lang.Iterable
+import java.text.SimpleDateFormat
 import java.util
 
 import org.apache.flink.api.common.functions._
@@ -28,7 +29,7 @@ import org.apache.flink.api.java.aggregation.Aggregations
 import org.apache.flink.api.scala._
 import org.apache.flink.ml.common.{Parameter, ParameterMap}
 import org.apache.flink.ml.feature_extraction.Word2vec._
-import org.apache.flink.ml.math.{BLAS, Vector, BreezeVectorConverter}
+import org.apache.flink.ml.math._
 import org.apache.flink.ml.pipeline.{TransformOperation, FitOperation, Transformer}
 import org.apache.flink.util.Collector
 
@@ -41,7 +42,7 @@ import scala.reflect.ClassTag
 
 
 import java.nio.ByteBuffer
-import java.util.{Random => JavaRandom}
+import java.util.{Random => JavaRandom, Calendar}
 
 import scala.util.hashing.MurmurHash3
 
@@ -271,7 +272,7 @@ object Word2vec {
   // ====================================== Parameters =============================================
 
   case object VectorSize extends Parameter[Int] {
-    override val defaultValue: Option[Int] = Some(100)
+    override val defaultValue: Option[Int] = Some(1000)
   }
 
   case object LearningRate extends Parameter[Double] {
@@ -323,7 +324,7 @@ object Word2vec {
    */
   def learnVocab(words : DataSet[String], minCount: Int): (DataSet[VocabWord],DataSet[mutable.HashMap[String, Int]]) ={
     
-    val vocab : DataSet[VocabWord] = words.flatMap(_.split(" "))
+    val vocab : DataSet[VocabWord] = words.flatMap(_.split(" ").filter(!_.isEmpty)) // also filters whitespace (they do not count as words)
       .map{(_,1)}
       .groupBy(0).sum(1) //reduceByKey(_+_)
       .map(x => VocabWord(
@@ -496,14 +497,16 @@ object Word2vec {
   }
 
   
-  def convertSentencesToHuffman(words : DataSet[String], hash : DataSet[mutable.HashMap[String, Int]]): DataSet[Array[Int]]  = {
+  def convertSentenceWordsToIndexes(words : DataSet[String], hash : DataSet[mutable.HashMap[String, Int]]): DataSet[Array[Int]]  = {
   
+    //split at whitespace and make array
     val sentencesStrings : DataSet[Array[String]] = words.flatMap{new FlatMapFunction[String,Array[String]] {
       override def flatMap(value: String, out: Collector[Array[String]]): Unit = {
         out.collect(value.split(" "))
       }
     }}
   
+    // convert words inarray to 1-hot encoding
    val sentencesInts:DataSet[Array[Int]] = sentencesStrings.map{
      new RichMapFunction[Array[String],Array[Int]] {
       
@@ -535,7 +538,7 @@ object Word2vec {
   /**
    * initializes neural network to be trained to output word vectors
    */
-  def initNetwork(resultingParameters : ParameterMap): (Array[Float],Array[Float]) ={
+  def initNetwork(resultingParameters : ParameterMap): (DenseMatrix,DenseMatrix) ={
     //val initRandom = new XORShiftRandom(seed)
     
     val vectorSizeOpt = resultingParameters.get[Int](VectorSize)
@@ -554,12 +557,486 @@ object Word2vec {
     }
 
     val initRandom = new XORShiftRandom(seed)
-    val syn0Global : Array[Float] =
-      Array.fill[Float](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize)
-    val syn1Global : Array[Float]= new Array[Float](vocabSize * vectorSize)
+    val syn0 : DenseMatrix = new DenseMatrix(vectorSize,vocabSize,Array.fill[Double](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize))
+    
+    val syn1 : DenseMatrix = new DenseMatrix(vocabSize,vectorSize,Array.fill[Double] (vocabSize * vectorSize )(( initRandom.nextFloat() - 0.5f) / vectorSize))
+    //val syn0Global : Array[Float] =
+    //  Array.fill[Float](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize)
+    //val syn1Global : Array[Double]= new Array[Double](vocabSize * vectorSize)
+    //val syn1 : DenseMatrix = new DenseMatrix(vocabSize,vectorSize,syn1Global)
+    
+    // neural network layers
+    (syn0,syn1)
+  }
+
+ /*
+  def dotMapReduce(A: DataSet[(Int,Int,Double)],B: DataSet[(Int,Int,Double)]): DataSet[(Int,Int,Double)] = {
+   */
+    
+    // for loop
+    /*
+    for (int i = 0; i < n; i++)
+      for (int j = 0; j < n; j++)
+        for (int k = 0; k < n; k++)
+          c[i][j] = c[i][j] + a[i][k]*b[k][j];
+    
+    for(i <- 0 to Rows - 1){
+      for(j <- 0 to Cols - 1){
+        for(k <- 0 to n - 1) {
+          res(i, j) += a(i, k) * b(k, j)
+        }
+      }
+    }
+  }*/
+  
+  
+  def activation_function(in : Double) : Double ={
+    var out = 1.0/(1.0 + math.exp(-in))
+    out
+  }
+  
+  def train_sg_iterative_matrix(expTable :Array[Float],vocab: Array[VocabWord],layer0:DenseMatrix,layer1:DenseMatrix,inIdx:Int, outIdx:Int,last_it:Boolean):(DenseMatrix,DenseMatrix,Double) = {
+    var error = 0.0
+    var learningRate = 0.1
+
+    var vectorSize = layer0.numRows
+
+    // input -> hidden
+    var hidden_act = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1){
+      hidden_act(i) = layer0(i,inIdx)
+    }
+    
+    // hidden -> output
+    var numOutputs = vocab(outIdx).codeLen
+
+    var errgrad1 = DenseMatrix.zeros(vectorSize,numOutputs)
+    for(netOutputIdx <- 0 to numOutputs - 1){
+    
+      var netOutputNum = vocab(outIdx).point(netOutputIdx)
+      var target = vocab(outIdx).code(netOutputIdx)
+
+      var output_net = 0.0
+      for(i <- 0 to vectorSize - 1){
+        output_net += layer1(netOutputNum,i) * hidden_act(i)
+      }
+
+      var output_act = output_net
+      
+      if (output_act > -MAX_EXP && output_act < MAX_EXP) {
+        var ind = ((output_act + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2.0)).toInt
+        output_act = expTable(ind)
+        var org_output_act = activation_function(output_net)
+        println("output_act original = " + org_output_act + " from table:" + output_act)
+      }
+      //var output_act = activation_function(output_net)
+
+      error += math.abs(output_act - target)
+
+      var output_error_gradient = ( output_act - target) * (1 - output_act ) * output_act
+
+
+      if(last_it){
+        println("gt = " + target + "  is = " + output_act)
+      }
+
+      // backpropagation
+
+      // layer1 update
+
+      for(i <- 0 to vectorSize - 1){
+        layer1(netOutputNum,i) -= learningRate * output_error_gradient * hidden_act(i)
+        errgrad1(i,netOutputIdx) += output_error_gradient * layer1(netOutputNum,i)
+      }
+    }
+
+    // layer0 update
+    for(netOutputIdx <- 0 to numOutputs - 1){
+      for(i <- 0 to vectorSize - 1){
+        if(hidden_act(i) < 0.000000000001){
+          hidden_act(i) = 0.0000000000001
+        }
+        layer0(i,inIdx) += -learningRate * errgrad1(i,netOutputIdx) * hidden_act(i) * (1 - hidden_act(i))
+      }
+    }
+
+    (layer0,layer1,error)
+  }
+
+    def train_sg_test_iterative(vocab: Array[VocabWord],layer0:DenseMatrix,layer1:DenseMatrix,inIdx:Int, outIdx:Int,last_it:Boolean):(DenseMatrix,DenseMatrix,Double) ={
+    
+    var error = 0.0
+    var learningRate = 0.1
+
+    var vectorSize = layer0.numRows
+
+    // input -> hidden
+    var hidden_net = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1){
+      hidden_net(i) = layer0(i,inIdx)
+    }
+    
+    var hidden_act = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1) {
+      hidden_act(i) = hidden_net(i)//activation_function(hidden_net(i))
+    }
+
+
+    
+    // hidden -> output
+    var numOutputs = vocab(outIdx).codeLen
+
+    var errgrad1 = DenseMatrix.zeros(vectorSize,numOutputs)
+    for(netOutputIdx <- 0 to numOutputs - 1){
+      var netOutputNum = vocab(outIdx).point(netOutputIdx)
+      var target = vocab(outIdx).code(netOutputIdx)
+
+      var output_net = 0.0
+      for(i <- 0 to vectorSize - 1){
+        output_net += layer1(netOutputNum,i) * hidden_act(i)
+      }
+
+      
+      
+      var output_act = activation_function(output_net)
+
+      error += math.abs(output_act - target)
+      
+      var output_error_gradient = ( output_act - target) * (1 - output_act ) * output_act
+
+      
+      if(last_it){
+        println("gt = " + target + "  is = " + output_act)
+      }
+
+      // backpropagation
+
+      // layer1 update
+      
+      for(i <- 0 to vectorSize - 1){
+        layer1(netOutputNum,i) -= learningRate * output_error_gradient * hidden_act(i)
+        errgrad1(i,netOutputIdx) += output_error_gradient * layer1(netOutputNum,i)
+      }
+      
+    }
+
+    // layer0 update
+    for(netOutputIdx <- 0 to numOutputs - 1){
+      for(i <- 0 to vectorSize - 1){
+        if(hidden_net(i) < 0.000000000001){
+          hidden_net(i) = 0.0000000000001
+        }
+        layer0(i,inIdx) += -learningRate * errgrad1(i,netOutputIdx) * hidden_net(i) * (1 - hidden_net(i))
+      }
+    }
+    
+    (layer0,layer1,error)
+  }
+  
+  def train_sg_test(): Unit ={
+    var vectorSize = 3
+    var layer0 = DenseMatrix.zeros(3,4)
+    var counter = 0.0
+    for(i <- 0 to 2){
+      for(j <- 0 to 3){
+        counter += 0.1
+        layer0(i,j) = counter
+      }
+    }
+    println(layer0)
+    
+    var layer1 = DenseMatrix.zeros(4,3)
+    counter = 0.0
+    for(i <- 0 to 3){
+      for(j <- 0 to 2){
+        counter += 0.1
+        layer1(i,j) = counter
+      }
+    }
+    println(layer1)
     
     
-    (syn0Global,syn1Global)
+    
+    var inIdx = 2
+    
+    // input -> hidden
+    var hidden_net = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1){
+      hidden_net(i) = layer0(i,inIdx)
+    }
+    
+    println("hidden_net:" + hidden_net)
+    
+    var hidden_act = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1){
+      hidden_act(i) = activation_function(hidden_net(i))
+    }
+    println("hidden_act:" + hidden_act)
+    
+    // hidden -> output
+    var outIdx = 1
+    var target = 1
+    var learningRate = 0.1
+    
+    var output_net = 0.0
+    for(i <- 0 to vectorSize - 1){
+      output_net += layer1(outIdx,i) * hidden_act(i) 
+    }
+    var output_act = activation_function(output_net)
+    println("output_net=" + output_net)
+    println("output_act=" + output_act)
+    
+    println("error=" + (target - output_act) + " gt:" + target + " is:" + output_act)
+    
+    var output_error_gradient = ( output_act - target) * (1 - output_act ) * output_act
+    println("output_error_gradient " + output_error_gradient)
+    
+    // backpropagation
+    
+    // layer1 update
+    var errgrad1 = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1){
+      layer1(outIdx,i) -= learningRate * output_error_gradient * hidden_act(i) 
+      errgrad1(i) += output_error_gradient * layer1(outIdx,i)      
+    }
+    
+    // layer0 update
+    for(i <- 0 to vectorSize - 1){
+      layer0(i,inIdx) += learningRate * errgrad1(i) * hidden_net(i) * (1 - hidden_net(i))
+    }
+    
+    println("new layer0:" + layer0)
+    println("new layer1:" + layer1)
+    
+    
+    
+    println("==========================================================")
+    hidden_net = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1){
+      hidden_net(i) = layer0(i,inIdx)
+    }
+    hidden_act = DenseVector(Array.fill[Double](vectorSize)(0.0))
+    for(i <- 0 to vectorSize - 1){
+      hidden_act(i) = activation_function(hidden_net(i))
+    }
+    output_net = 0.0
+    for(i <- 0 to vectorSize - 1){
+      output_net += layer1(outIdx,i) * hidden_act(i)
+    }
+    output_act = activation_function(output_net)
+    println("error=" + (target - output_act) + " gt:" + target + " is:" + output_act)
+    
+  }
+  
+  
+  def trainNetworkParallel(vectorSize: Int,learningRate: Double, windowSize: Int, numIterations: Int, layer0 : DenseMatrix, layer1: DenseMatrix,sentenceInNumbers:DataSet[Array[Int]], vocabDS : DataSet[VocabWord]): (DenseMatrix,DenseMatrix) ={
+    val expTable = createExpTable()
+    println("collecting and training Network")
+    val vocab : Array[VocabWord] = vocabDS.collect().toArray[VocabWord]
+    println("collected!")
+
+    var layer0New = layer0.copy
+    var layer1New = layer1.copy
+    var sentences = sentenceInNumbers.collect()
+
+
+    var avrg_error = 0.0
+    var error: Double = 0.0
+    var maxit = 10000
+    for(k <- 0 to maxit){
+      var now : java.util.Date = new java.util.Date();
+      println("k=" + k)
+
+      var average_abs_error : Double = 0
+      var its = 0
+
+      val random = new XORShiftRandom(seed ^ /*((idx + 1) << 16) ^*/ ((-k - 1) << 8))
+
+      val alpha = 0.01
+
+      var t0 = System.nanoTime()
+
+      for(sentence_counter <- 0  to sentences.length - 1){
+        
+        var timediff = System.nanoTime() - t0
+
+        println("sentence_coutner:" + sentence_counter + " of " + (sentences.length -1) + ":" + timediff/1000/1000/1000.0 + "s")
+
+        t0 = System.nanoTime()
+
+        var sentence = sentences(sentence_counter)
+
+        var sentence_position = 0
+        // discard sentences with length 0, subsampling
+        // TODO: remove and make distributed
+        sentenceInNumbers.getExecutionEnvironment.getConfig.disableSysoutLogging()
+        //var it = sentenceInNumbers.collect.iterator
+        //var sentence : Array[Int] = it.next()
+
+
+
+        //println("training for sentence:")
+        //for(i <- 0 to sentence.length - 1){
+        //  print(" " + vocab(sentence(i)).word)
+        //}
+        //println(" ")
+        // iterate through all input words
+        var last_it = false
+        if(k == maxit){ last_it = true}
+        if(last_it){
+          for(ll <- 0 to sentence.length - 1){
+            print(vocab(sentence(ll)).word + " ")
+          }
+          println(" ")
+        }
+
+        for (pos <- 0 to sentence.length - 1){
+          // chose at random, words closer to the original word are more important
+          var currentWindowSize = random.nextInt(windowSize - 1) + 1
+          //var currentWindowSize = 3
+
+          // go along
+          for(outpos <- (- currentWindowSize + pos) to (pos + currentWindowSize)){
+            if(outpos >= 0 && outpos != pos && outpos <= sentence.length - 1){
+              //if(outpos == pos)  {
+              //println("inpos:" + pos + ", outpos=" + outpos)
+              val outIdx: Int = sentence(outpos)
+              val inIdx: Int = sentence(pos)
+
+
+
+              //println("training:" + inIdx + " to " + outIdx + " words:" + vocab(inIdx).word + " | " + vocab(outIdx).word)
+              //if (inIdx >= 10000 && outIdx >= 100000) {
+              if(last_it){
+                println("training:" + vocab(inIdx).word + "  and   " + vocab(outIdx).word)
+              }
+              val res = train_sg_test_iterative(vocab,layer0New,layer1New,inIdx, outIdx,last_it)
+              //var res = train_sg_iterative_matrix(expTable,vocab,layer0New,layer1New,inIdx, outIdx,last_it)
+              layer0New = res._1
+              layer1New = res._2
+              error += res._3
+              avrg_error += res._3
+            }
+          }
+        }
+      }
+      if(k % 1000 == 0){
+        println(k + ";"+ avrg_error / 1000.0 )//+ ":" + error)
+        //println("layer0:" + layer0New)
+        //println("layer1:" + layer1New)
+        avrg_error = 0.0
+        error = 0.0
+      }
+    }
+    println("layer0:\n" + layer0New)
+    println("layer1:\n" + layer1New)
+    (layer0New,layer1New)
+  }
+  /**
+   * trains network with matrices
+   */
+  def trainNetwork2(vectorSize: Int,learningRate: Double, windowSize: Int, numIterations: Int, layer0 : DenseMatrix, layer1: DenseMatrix,sentenceInNumbers:DataSet[Array[Int]], vocabDS : DataSet[VocabWord]): (DenseMatrix,DenseMatrix) ={
+    val expTable = createExpTable()
+    println("collecting and training Network")
+    val vocab : Array[VocabWord] = vocabDS.collect().toArray[VocabWord]
+    println("collected!")
+
+    var layer0New = layer0.copy
+    var layer1New = layer1.copy
+    var sentences = sentenceInNumbers.collect()
+    
+    
+    var avrg_error = 0.0
+    var error: Double = 0.0
+    var maxit = 10000
+    for(k <- 0 to maxit){
+      var now : java.util.Date = new java.util.Date();
+      println("k=" + k)
+      
+      var average_abs_error : Double = 0
+      var its = 0
+
+      val random = new XORShiftRandom(seed ^ /*((idx + 1) << 16) ^*/ ((-k - 1) << 8))
+      
+      val alpha = 0.01
+      
+      var t0 = System.nanoTime()
+      
+      for(sentence_counter <- 0  to sentences.length - 1){
+        
+        var timediff = System.nanoTime() - t0
+        
+        println("sentence_coutner:" + sentence_counter + " of " + (sentences.length -1) + ":" + timediff/1000/1000/1000.0 + "s")
+        
+        t0 = System.nanoTime()
+        
+        var sentence = sentences(sentence_counter)
+       
+        var sentence_position = 0
+        // discard sentences with length 0, subsampling
+        // TODO: remove and make distributed
+        sentenceInNumbers.getExecutionEnvironment.getConfig.disableSysoutLogging()
+        //var it = sentenceInNumbers.collect.iterator
+        //var sentence : Array[Int] = it.next()
+        
+        
+        
+        //println("training for sentence:")
+        //for(i <- 0 to sentence.length - 1){
+        //  print(" " + vocab(sentence(i)).word)
+        //}
+        //println(" ")
+        // iterate through all input words
+        var last_it = false
+        if(k == maxit){ last_it = true}
+        if(last_it){
+          for(ll <- 0 to sentence.length - 1){
+            print(vocab(sentence(ll)).word + " ")
+          }
+          println(" ")
+        }
+        
+        for (pos <- 0 to sentence.length - 1){
+          // chose at random, words closer to the original word are more important
+          var currentWindowSize = random.nextInt(windowSize - 1) + 1
+          //var currentWindowSize = 3
+          
+          // go along
+          for(outpos <- (- currentWindowSize + pos) to (pos + currentWindowSize)){
+            if(outpos >= 0 && outpos != pos && outpos <= sentence.length - 1){
+            //if(outpos == pos)  {
+              //println("inpos:" + pos + ", outpos=" + outpos)
+              val outIdx: Int = sentence(outpos)
+              val inIdx: Int = sentence(pos)
+              
+              
+              
+              //println("training:" + inIdx + " to " + outIdx + " words:" + vocab(inIdx).word + " | " + vocab(outIdx).word)
+              //if (inIdx >= 10000 && outIdx >= 100000) {
+              if(last_it){
+                println("training:" + vocab(inIdx).word + "  and   " + vocab(outIdx).word)
+              }
+              val res = train_sg_test_iterative(vocab,layer0New,layer1New,inIdx, outIdx,last_it)
+              //var res = train_sg_iterative_matrix(expTable,vocab,layer0New,layer1New,inIdx, outIdx,last_it)
+              layer0New = res._1
+              layer1New = res._2
+              error += res._3
+              avrg_error += res._3
+            }
+          }
+        }
+        }
+        if(k % 1000 == 0){
+          println(k + ";"+ avrg_error / 1000.0 )//+ ":" + error)
+          //println("layer0:" + layer0New)
+          //println("layer1:" + layer1New)
+          avrg_error = 0.0
+          error = 0.0
+        }
+    }
+    println("layer0:\n" + layer0New)
+    println("layer1:\n" + layer1New)
+    (layer0New,layer1New)
   }
   /**
    * trains network 
@@ -623,7 +1100,7 @@ object Word2vec {
         println(" " + k + " of " + numIterations + " is " + (k/numIterations * 100.0) + " % ")
         val random = new XORShiftRandom(seed ^ /*((idx + 1) << 16) ^*/ ((-k - 1) << 8))
         // set learning rate TODO: check if word count last etc is really necessairy
-      alpha = 1
+         alpha = 1
         if (word_count - last_word_count > 10000){
           word_count_actual += word_count - last_word_count
           println("word_count_actual += word_count - last_word_count" + word_count_actual)
@@ -741,22 +1218,71 @@ object Word2vec {
       
       val resultingParameters = instance.parameters ++ fitParameters
       val minCount = resultingParameters(MinCount)
+
+
+      var lr = resultingParameters.get[Double](LearningRate)
+      var learningRate : Double = 0
+      lr match{
+        case Some(lR) => learningRate = lR
+        case None => throw new Exception("Could not retrieve learning Rate, none specified?")
+      }
+
+      var ws = resultingParameters.get[Int](WindowSize)
+      var windowSize : Int = 0
+      ws match{
+        case Some(wS) => windowSize = wS
+        case None => throw new Exception("Could not retrieve window Size,none specified?")
+      }
+
+      var numI = resultingParameters.get[Int](NumIterations)
+      var numIterations = 0
+      numI match{
+        case Some(ni) => numIterations = ni
+        case None => throw new Exception("Could not retrieve number of Iterations, none specified?")
+      }
+      numIterations = 100000
+
+
+      var vSize = resultingParameters.get[Int](VectorSize)
+      var vectorSize = 0
+      vSize match{
+        case Some(vS) => vectorSize = vS
+        case None => throw new Exception("Could not retrieve vector size of hidden layer, none specified?")
+      }
       
+      
+      input.getExecutionEnvironment.getConfig.disableSysoutLogging()
       // Get different words and sort them for their frequency
+      println("initializing vocab Hash")
       var vocab_hash = learnVocab(input,minCount)
       //huffman tree
-      var vocab : DataSet[VocabWord] = vocab_hash._1
+      println("initializing vocab dataset")
+      var vocabDS : DataSet[VocabWord] = vocab_hash._1
       var hash = vocab_hash._2
-      vocab = createBinaryTree(vocab)
+      println("creating binary tree")
+      vocabDS = createBinaryTree(vocabDS)
       // convert words in sentences
     
-      var sentencesInNumbers : DataSet[Array[Int]] = convertSentencesToHuffman(input,hash) // this should be list of sentences (without period mark), with words separated by whitespace
+      println("converting sentencewords to indices")
+      var sentenceInNumber : DataSet[Array[Int]] = convertSentenceWordsToIndexes(input,hash) // this should be list of sentences (without period mark), with words separated by whitespace
     
-      //init net?
-      var (syn0Global,syn1Global) = initNetwork(resultingParameters)
+      println("collecting sentences")
+      var sn = sentenceInNumber.collect()
       
-      trainNetwork(resultingParameters,syn0Global,syn1Global,sentencesInNumbers,vocab)
-      // negative sampling -> use unigram
+      
+      
+      
+      //init net?
+      println("initializing neural network")
+      var (layer0,layer1) = initNetwork(resultingParameters)
+
+      
+      
+      
+      //train_sg_test()
+      println("trainign neural network")
+      var res = trainNetwork2(vectorSize,learningRate, windowSize, numIterations, layer0, layer1,sentenceInNumber, vocabDS)
+        // negative sampling -> use unigram
       
       //skipgram ?
       
