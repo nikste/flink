@@ -28,7 +28,7 @@ import org.apache.flink.api.java.aggregation.Aggregations
 import org.apache.flink.api.scala._
 import org.apache.flink.ml.common.{Parameter, ParameterMap}
 import org.apache.flink.ml.feature_extraction.Word2vec._
-import org.apache.flink.ml.math.{BLAS, Vector, BreezeVectorConverter}
+import org.apache.flink.ml.math._
 import org.apache.flink.ml.pipeline.{TransformOperation, FitOperation, Transformer}
 import org.apache.flink.util.Collector
 
@@ -496,14 +496,16 @@ object Word2vec {
   }
 
   
-  def convertSentencesToHuffman(words : DataSet[String], hash : DataSet[mutable.HashMap[String, Int]]): DataSet[Array[Int]]  = {
+  def convertSentenceWordsToIndexes(words : DataSet[String], hash : DataSet[mutable.HashMap[String, Int]]): DataSet[Array[Int]]  = {
   
+    //split at whitespace and make array
     val sentencesStrings : DataSet[Array[String]] = words.flatMap{new FlatMapFunction[String,Array[String]] {
       override def flatMap(value: String, out: Collector[Array[String]]): Unit = {
         out.collect(value.split(" "))
       }
     }}
   
+    // convert words inarray to 1-hot encoding
    val sentencesInts:DataSet[Array[Int]] = sentencesStrings.map{
      new RichMapFunction[Array[String],Array[Int]] {
       
@@ -535,7 +537,7 @@ object Word2vec {
   /**
    * initializes neural network to be trained to output word vectors
    */
-  def initNetwork(resultingParameters : ParameterMap): (Array[Float],Array[Float]) ={
+  def initNetwork(resultingParameters : ParameterMap): (DenseMatrix,DenseMatrix) ={
     //val initRandom = new XORShiftRandom(seed)
     
     val vectorSizeOpt = resultingParameters.get[Int](VectorSize)
@@ -554,12 +556,77 @@ object Word2vec {
     }
 
     val initRandom = new XORShiftRandom(seed)
-    val syn0Global : Array[Float] =
-      Array.fill[Float](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize)
-    val syn1Global : Array[Float]= new Array[Float](vocabSize * vectorSize)
+    val syn0 : DenseMatrix = new DenseMatrix(vectorSize,vocabSize,Array.fill[Double](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize))
+    //val syn0Global : Array[Float] =
+    //  Array.fill[Float](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize)
+    val syn1Global : Array[Double]= new Array[Double](vocabSize * vectorSize)
+    val syn1 : DenseMatrix = new DenseMatrix(vocabSize,vectorSize,syn1Global)
     
     
-    (syn0Global,syn1Global)
+    // neural network layers
+    (syn0,syn1)
+  }
+
+  def train_sg_words(vocab: Array[VocabWord],vectorSize:Int,alpha : Double, layer0 : DenseMatrix,layer1 : DenseMatrix,inIdx:Int,outIdx:Int): (DenseMatrix, DenseMatrix) ={
+    
+    
+    // get first layer (1 vector):
+    // TODO: write copy vector / getRow/getColumn function for matrix
+    
+    // propagate input -> hidden layer
+    var column: Array[Double] = new Array[Double](vectorSize)
+    for(i <- 0 to vectorSize - 1){column(i) = layer0.apply(inIdx,i)}
+    var l0 :DenseVector = new DenseVector(column)
+    
+    
+    
+    
+    
+    
+    (layer0,layer1)
+  }
+  /**
+   * trains network with matrices
+   */
+  def trainNetwork2(vectorSize: Int,learningRate: Double, windowSize: Int, numIterations: Int, layer0 : DenseMatrix, layer1: DenseMatrix,sentenceInNumbers:DataSet[Array[Int]], vocabDS : DataSet[VocabWord]): Unit ={
+    println("collecting and training Network")
+    val vocab : Array[VocabWord] = vocabDS.collect().toArray[VocabWord]
+    println("collected!")
+
+    
+    for(k <- 0 to numIterations){
+      
+      var average_abs_error : Double = 0
+      var its = 0
+
+      val random = new XORShiftRandom(seed ^ /*((idx + 1) << 16) ^*/ ((-k - 1) << 8))
+      
+      val alpha = 0.1
+
+
+      var sentence_position = 0
+      // discard sentences with length 0, subsampling
+      // TODO: remove and make distributed
+      var it = sentenceInNumbers.collect.iterator
+      var sentence : Array[Int] = it.next()
+
+      // iterate through all input words
+      for (pos <- 0 to sentence.length - 1){
+        // chose at random, words closer to the original word are more important
+        var currentWindowSize = random.nextInt(windowSize)
+
+        for (currentOutputWordIdx <- currentWindowSize to windowSize * 2 + 1 - currentWindowSize - 1){
+          if (currentOutputWordIdx != windowSize) {
+            val outIdx = pos - windowSize + currentOutputWordIdx
+            val inIdx: Int = sentence(pos)
+
+            (layer0,layer1) = train_sg_words(vocab,vectorSize,alpha, layer0,layer1,inIdx,outIdx)
+            
+          }
+        } 
+      }
+    }
+    
   }
   /**
    * trains network 
@@ -623,7 +690,7 @@ object Word2vec {
         println(" " + k + " of " + numIterations + " is " + (k/numIterations * 100.0) + " % ")
         val random = new XORShiftRandom(seed ^ /*((idx + 1) << 16) ^*/ ((-k - 1) << 8))
         // set learning rate TODO: check if word count last etc is really necessairy
-      alpha = 1
+         alpha = 1
         if (word_count - last_word_count > 10000){
           word_count_actual += word_count - last_word_count
           println("word_count_actual += word_count - last_word_count" + word_count_actual)
@@ -741,22 +808,54 @@ object Word2vec {
       
       val resultingParameters = instance.parameters ++ fitParameters
       val minCount = resultingParameters(MinCount)
+
+
+      var lr = resultingParameters.get[Double](LearningRate)
+      var learningRate : Double = 0
+      lr match{
+        case Some(lR) => learningRate = lR
+        case None => throw new Exception("Could not retrieve learning Rate, none specified?")
+      }
+
+      var ws = resultingParameters.get[Int](WindowSize)
+      var windowSize : Int = 0
+      ws match{
+        case Some(wS) => windowSize = wS
+        case None => throw new Exception("Could not retrieve window Size,none specified?")
+      }
+
+      var numI = resultingParameters.get[Int](NumIterations)
+      var numIterations = 0
+      numI match{
+        case Some(ni) => numIterations = ni
+        case None => throw new Exception("Could not retrieve number of Iterations, none specified?")
+      }
+      numIterations = 100000
+
+
+      var vSize = resultingParameters.get[Int](VectorSize)
+      var vectorSize = 0
+      vSize match{
+        case Some(vS) => vectorSize = vS
+        case None => throw new Exception("Could not retrieve vector size of hidden layer, none specified?")
+      }
+      
       
       // Get different words and sort them for their frequency
       var vocab_hash = learnVocab(input,minCount)
       //huffman tree
-      var vocab : DataSet[VocabWord] = vocab_hash._1
+      var vocabDS : DataSet[VocabWord] = vocab_hash._1
       var hash = vocab_hash._2
-      vocab = createBinaryTree(vocab)
+      vocabDS = createBinaryTree(vocabDS)
       // convert words in sentences
     
-      var sentencesInNumbers : DataSet[Array[Int]] = convertSentencesToHuffman(input,hash) // this should be list of sentences (without period mark), with words separated by whitespace
+      var sentenceInNumber : DataSet[Array[Int]] = convertSentenceWordsToIndexes(input,hash) // this should be list of sentences (without period mark), with words separated by whitespace
     
       //init net?
-      var (syn0Global,syn1Global) = initNetwork(resultingParameters)
-      
-      trainNetwork(resultingParameters,syn0Global,syn1Global,sentencesInNumbers,vocab)
-      // negative sampling -> use unigram
+      var (layer0,layer1) = initNetwork(resultingParameters)
+
+      trainNetwork2(vectorSize,learningRate, windowSize, numIterations, layer0, layer1,sentenceInNumber, vocabDS)
+        // negative sampling -> use unigram
       
       //skipgram ?
       
