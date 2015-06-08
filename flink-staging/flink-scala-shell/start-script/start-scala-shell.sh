@@ -52,6 +52,25 @@ bin=`cd "$bin"; pwd`
 
 FLINK_CLASSPATH=`constructFlinkClassPath`
 
+# https://issues.scala-lang.org/browse/SI-6502, cant load external jars interactively
+# in scala shell since 2.10, has to be done at startup
+# checks arguments for additional classpath and adds it to the "standard classpath"
+
+for ((i=1;i<=$#;i++))
+do
+    if [[  ${!i} = "-cp" || ${!i} = "--classpath" ]]
+    then
+	#adding to classpath
+        k=$((i+1))
+        j=$((k+1))
+        echo " "
+        echo "Additional classpath:${!k}"
+        echo " "
+        FLINK_CLASSPATH="$FLINK_CLASSPATH:${!k}"
+        set -- "${@:1:$((i-1))}" "${@:j}"
+    fi
+done
+
 java -cp "$FLINK_CLASSPATH" org.apache.flink.api.scala.FlinkShell $@
 
 #restore echo
