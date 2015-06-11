@@ -29,16 +29,27 @@ import org.apache.flink.util.AbstractID
 class FlinkILoop(
     val host: String,
     val port: Int,
+    val externalJars: Option[Array[String]],
     in0: Option[BufferedReader],
     out0: JPrintWriter)
   extends ILoop(in0, out0) {
-
-  def this(host:String, port:Int, in0: BufferedReader, out: JPrintWriter){
-    this(host:String, port:Int, Some(in0), out)
+  
+  
+  
+  def this(host:String, 
+           port:Int, 
+           externalJars : Option[Array[String]], 
+           in0: BufferedReader, 
+           out: JPrintWriter){
+    this(host:String, port:Int, externalJars, Some(in0), out)
   }
 
-  def this(host:String, port:Int){
-    this(host:String,port: Int,None, new JPrintWriter(Console.out, true))
+  def this(host:String, port:Int, externalJars : Option[Array[String]]){
+    this(host:String,port: Int, externalJars , None, new JPrintWriter(Console.out, true))
+  }
+  
+  def this(host: String, port: Int, in0: BufferedReader, out: JPrintWriter){
+    this(host: String, port: Int, None, in0: BufferedReader, out: JPrintWriter)
   }
   // remote environment
   private val remoteEnv: ScalaShellRemoteEnvironment = {
@@ -126,6 +137,7 @@ class FlinkILoop(
     }
 
     val compiledClasses = new File(tmpDirShell.getAbsolutePath)
+
     val jarFilePath = new File(tmpJarShell.getAbsolutePath)
 
     val jh: JarHelper = new JarHelper
@@ -190,6 +202,15 @@ HINT: You can use print() on a DataSet to print the contents to this shell.
     // scalastyle:on
     )
 
+  }
+  
+  def getExternalJars(): Array[String] ={
+    var extJars : Array[String] = Array.empty[String]
+    this.externalJars match{
+      case Some(ej) => extJars = ej
+      case None  => 
+    }
+    extJars
   }
 }
 
