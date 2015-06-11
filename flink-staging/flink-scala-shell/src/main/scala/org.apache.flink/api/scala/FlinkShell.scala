@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.api.scala
 
 
@@ -30,7 +31,8 @@ object FlinkShell {
 
     // scopt, command line arguments
     case class Config(port: Int = -1,
-                      host: String = "none")
+                      host: String = "none",
+                       externalJars: Option[Array[String]] = None)
     val parser = new scopt.OptionParser[Config]("start-scala-shell.sh") {
       head ("Flink Scala Shell")
 
@@ -44,6 +46,16 @@ object FlinkShell {
           c.copy (host = x)
       }  text("host specifies host name of running JobManager")
 
+      opt[(String)] ('a',"addclasspath") action {
+        case (x,c) =>
+          val xArray = x.split(":")
+          var extJarArray = new Array[String](xArray.length)
+          for(i <- 0 to xArray.length - 1){
+            extJarArray(i) = xArray(i)
+          }
+          c.copy(externalJars = Option(xArray))
+      } text("specifies additional jars to be used in Flink")
+      
       help("help") text("prints this usage text")
     }
 
@@ -51,14 +63,16 @@ object FlinkShell {
     // parse arguments
     parser.parse (args, Config () ) match {
       case Some(config) =>
-        startShell(config.host,config.port)
+        startShell(config.host,config.port,config.externalJars)
 
       case _ => println("Could not parse program arguments")
     }
   }
 
 
-  def startShell(userHost : String, userPort : Int): Unit ={
+  def startShell(userHost : String, 
+                 userPort : Int, 
+                 externalJars : Option[Array[String]] = None): Unit ={
     println("Starting Flink Shell:")
 
     var cluster: LocalFlinkMiniCluster = null
@@ -72,9 +86,9 @@ object FlinkShell {
       println(s"Connecting to remote server (host: $userHost, port: $userPort).")
       (userHost, userPort)
     }
-
+    
     // custom shell
-    val repl = new FlinkILoop(host, port) //new MyILoop();
+    val repl = new FlinkILoop(host, port, externalJars) //new MyILoop();
 
     repl.settings = new Settings()
 
