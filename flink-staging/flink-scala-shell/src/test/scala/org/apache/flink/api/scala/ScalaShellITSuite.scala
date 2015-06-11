@@ -74,7 +74,6 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     output should not include "error"
     output should not include "Exception"
 
-    output should include("Job execution switched to status FINISHED.")
 
 //    some of the words that should be included
     output should include("(a,1)")
@@ -177,6 +176,8 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
     System.setOut(oldOut)
 
+    baos.flush()
+    
     val stdout = baos.toString
 
     // reprint because ScalaTest fails if we don't
