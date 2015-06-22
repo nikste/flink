@@ -21,97 +21,86 @@ package org.apache.flink.api.scala
  * Created by nikste on 5/28/15.
  */
 
+import java.util
+
+import org.apache.flink.api.common.functions.{MapFunction, FlatMapFunction}
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.java.operators.IterativeDataSet
 import org.apache.flink.ml.feature_extraction.Word2vec
+import org.apache.flink.util.Collector
+
+import scala.util.Random
 
 object test {
   def main(args: Array[String]) {
-  println("start")
+    println("start")
   
     val env = ExecutionEnvironment.getExecutionEnvironment
 
 
-/*    val rawLines : DataSet[String] = env.readTextFile("file:///home/nikste/workspace-flink/enwik9_clean");
-    // convert to sentences
-    val rawText : DataSet[String] = rawLines.reduce((w1,w2) => w1 + w2)
-    val linesDS = rawLines.reduce((w1,w2) => w1 + w2)
-      .flatMap {
-      _.toLowerCase.split("\\.") filter {
-      _.nonEmpty
+    var sentences : DataSet[String] = env.fromElements("a","b","c","d","e","f")
+
+    // additional parameter batchsize = 
+    var batchsize = 2
+    
+    var sentencecount : Long = sentences.count
+    
+    // number of keys = sentencecounts / batchsize
+    var num_keys : Long = sentencecount / batchsize
+
+
+    
+    // generates number between min (inclusive) and max(exclusive)
+    /*def generateKey(min : Int,max : Int) : Int = {
+      var R = r.nextInt(max-min) + max;
+      R
+    }*/
+    var max = num_keys
+    var weightmatrices = env.fromElements((1,2))
+    
+    var sentences_withkeys = sentences.map(new keyGeneratorFunction(max.toInt))//{ x => ( generateKey(0, num_keys.toInt), x )}
+    var weights_withkeys = weightmatrices.flatMap{new FlatMapFunction[(Int,Int),(Int,Int,Int)]{
+      def flatMap(input:(Int,Int),output:Collector[(Int,Int,Int)]): Unit ={
+          for(i <- 0 to num_keys.toInt){
+            output.collect((i,input._1,input._2))
+          }
+        }
+      }
     }
-  }
-//    inputData.print()
-  */
-  /*  val inputData = env.fromElements(
-  "a a a a a a a a a a a a a a a a a", 
-  "b b b b b b b b b b b b b b b b",
-  "c c c c c c c c c c c c c c c",
-  "d d d d d d d d d d d d d d",
-  "e e e e e e e e e e e e e",
-  "f f f f f f f f f f f f",
-  "g g g g g g g g g g g ",
-  "h h h h h h h h h h",
-  "i i i i i i i i i",
-  "j j j j j j j j",
-  "k k k k k k k",
-  "l l l l l l",
-  "m m m m m")*/
     
-    //env.getConfig.disableSysoutLogging()
-    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/t4_small_small_small_small")
-    //var inputData = env.fromElements("I go home","I go home","I go kitchen","I go kitchen","I home my")
-    //env.getConfig.disableSysoutLogging() 
+    sentences_withkeys.print
+    weights_withkeys.print
+    var joint = sentences_withkeys.join(weights_withkeys).where(0).equalTo(0)
+    joint.print
     
-    //var inputData = env.fromElements("A word in a sentence . . i.e. fucking stupid")
-    //inputData = inputData.map(_.split(' '))
-    println(inputData.count)
-    //println("before::::")
-    //inputData.print
+    
     /*
-    inputData = inputData.reduce((a,b) => a +" " +b)
-    inputData = inputData.flatMap(_.split("\\.")).flatMap(_.split(' '))
-    inputData = inputData.filter(_.length > 5)
+    val count = test.iterate(1000000) { iterationInput: DataSet[Int] =>
+      val result = iterationInput.map { i =>
+        val x = Math.random()
+        val y = Math.random()
+        i + (if (x * x + y * y < 1) 1 else 0)
+      }
+      result
+    }
+    
+    val result = count.map{ c => c /10000.0 * 4 }
+    result.print()
     */
+    
+    
+    println("end")
+    /*
+    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/t4_small_small_small_small")
+    
+    println(inputData.count)
+    
     inputData = inputData.flatMap(_.split("\\.")).map(_.replaceAll("\\s+"," ")).filter(_.length > 20)//.flatMap(_.split(" "))
     
-    println("after::::")
-    //inputData.print
     env.getConfig.disableSysoutLogging()
     
     val w2v = Word2vec()
     w2v.fit(inputData)
-    
-    
-    
-/*
-     inputData = inputData.filter(_.length > 20)
-   println(inputData.count)
-  
-    env.getConfig.disableSysoutLogging()
-    //inputData = inputData.filter(_.nonEmpty).filter(_.length > 2)
-
-    //inputData.print
-    /*
-    println(inputData.count)
-    //inputData = inputData.map(_.filterNot(_.forall(_.isEmpty)))
-    inputData = inputData.filter(_.length > 5)
-    println(inputData.count)
-    
-    
-    inputData.print()
     */
-    //println("inputdatacoutn" + inputData.count()) 
-    //inputData.print()
-    
-    
-    val w2v = Word2vec()
-    w2v.fit(inputData)
-  
-  //inputData.print()
-    //println("inputData.coutn()="+rawText.print())
-    //println("rawLines.count() = ")
-    //println(linesDS.print())
-    println("end")
-*/
-}
+  }
 }
