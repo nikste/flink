@@ -18,9 +18,11 @@
 package org.apache.flink.ml.feature_extraction
 
 
+import java.io.{ObjectInputStream, IOException}
 import java.lang.Iterable
 import java.text.SimpleDateFormat
 import java.util
+import java.util.Random
 
 import org.apache.flink.api.common.functions._
 import org.apache.flink.api.common.operators.Order
@@ -45,6 +47,7 @@ import scala.reflect.ClassTag
 import java.nio.ByteBuffer
 import java.util.{Random => JavaRandom, Calendar}
 
+import scala.util.{Random => ScalaRandom}
 import scala.util.hashing.MurmurHash3
 
 
@@ -79,7 +82,32 @@ private class XORShiftRandom(init: Long) extends JavaRandom(init) {
     seed = XORShiftRandom.hashSeed(s)
   }
 }
+class keyGeneratorFunction(max:Int) extends MapFunction[Array[Int], (Int, Array[Int])]{
 
+  var seed = 10
+  @transient
+  var r : Random = new Random()//seed) //= 
+  /*keyGeneratorFunction(max:Int){
+    r = new scala.util.Random(seed)
+    
+  }//= new scala.util.Random(seed);
+  */
+  @throws(classOf[IOException])
+  private def readObject(input:ObjectInputStream) : Unit = {
+    input.defaultReadObject()
+    r = new Random(seed)
+  }
+
+  /*def keyGeneratorFunction(max:Int): Unit ={
+    r = new scala.util.Random(seed)
+    
+  }*/
+
+  override def map(value: Array[Int]): (Int, Array[Int]) = {
+    var R = r.nextInt(max);
+    (R,value)
+  }
+}
 /** Contains benchmark method and main method to run benchmark of the RNG */
 private object XORShiftRandom {
 
@@ -274,7 +302,7 @@ object Word2vec {
   // ====================================== Parameters =============================================
 
   case object VectorSize extends Parameter[Int] {
-    override val defaultValue: Option[Int] = Some(1000)
+    override val defaultValue: Option[Int] = Some(300)
   }
 
   case object LearningRate extends Parameter[Double] {
@@ -671,7 +699,7 @@ object Word2vec {
     (layer0,layer1,error)
   }
 */
-  /*
+  
     def train_sg_test_iterative(vocab: Array[VocabWord],layer0:DenseMatrix,layer1:DenseMatrix,inIdx:Int, outIdx:Int,last_it:Boolean):(DenseMatrix,DenseMatrix,Double) = {
 
     var error = 0.0
@@ -741,7 +769,7 @@ object Word2vec {
     
     (layer0,layer1,error)
   }
-  */
+  
   def train_sg_test(): Unit = {
     var vectorSize = 3
     var layer0 = DenseMatrix.zeros(3, 4)
@@ -944,8 +972,93 @@ object Word2vec {
   
   */
 
+  def train_sentence(vocab : Array[VocabWord],layer0 : DenseMatrix,layer1 : DenseMatrix,sentence : Array[Int]): (DenseMatrix,DenseMatrix) ={
+    var layer0New = layer0.copy
+    var layer1New = layer1.copy
+      for (pos <- 0 to sentence.length - 1) {
+        // chose at random, words closer to the original word are more important
+        var currentWindowSize = 4
 
+        // go along
+        for (outpos <- (-currentWindowSize + pos) to (pos + currentWindowSize)) {
+          if (outpos >= 0 && outpos != pos && outpos <= sentence.length - 1) {
+
+            val outIdx: Int = sentence(outpos)
+            val inIdx: Int = sentence(pos)
+
+            val res = train_sg_test_iterative(vocab, layer0New, layer1New, inIdx, outIdx, false)
+            //var res = train_sg_iterative_matrix(expTable,vocab,layer0New,layer1New,inIdx, outIdx,last_it)
+            layer0New = res._1
+            layer1New = res._2
+            //error += res._3
+            //avrg_error += res._3
+          }
+        }
+      }
+    (layer0New,layer1New)
+  }
+  
   def trainNetwork_distributed(vectorSize: Int, learningRate: Double, windowSize: Int, numIterations: Int, layer0: DenseMatrix, layer1: DenseMatrix, sentenceInNumbers: DataSet[Array[Int]], vocabDS: DataSet[VocabWord]): (DenseMatrix, DenseMatrix) = {
+    
+    // additional parameter batchsize = 
+    var batchsize = 100
+
+    var sentencecount : Long = sentenceInNumbers.count
+
+    // number of keys = sentencecounts / batchsize
+    var num_keys : Long = sentencecount / batchsize
+
+    println("num_keys:" + num_keys)
+
+
+    var max = num_keys
+
+    // (w1,w2)
+    var weights : DataSet[(DenseMatrix,DenseMatrix)] = sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1))//env.fromElements((1,2))
+    // touple (key,sentence)
+    var sentences_withkeys :GroupedDataSet[(Int,Array[Int])] = sentenceInNumbers.map(new keyGeneratorFunction(max.toInt)).name("mapSentences").groupBy(0)
+
+
+    var maxIterations : Int = 20
+    //var iterativeOperator = weights.iterate(maxIterations)
+    val finalWeights: DataSet[(DenseMatrix, DenseMatrix)] = weights.iterate(maxIterations)
+    {
+      previousWeights : DataSet[(DenseMatrix,DenseMatrix)] => {
+        val nextWeights  : DataSet[(DenseMatrix,DenseMatrix)] = sentences_withkeys.reduceGroup {
+          // comput updates of weight matrices per "class" / training data partition
+          new RichGroupReduceFunction[(Int, Array[Int]), (DenseMatrix, DenseMatrix)] {
+            override def reduce(values: Iterable[(Int, Array[Int])], out: Collector[(DenseMatrix, DenseMatrix)]): Unit = {
+              var it = values.iterator()
+              var iterativeWeights: (DenseMatrix, DenseMatrix) = getIterationRuntimeContext.getBroadcastVariable[(DenseMatrix, DenseMatrix)]("iterativeWeights").get(0)
+              var vocab : DataSet[VocabWord] = getIterationRuntimeContext.getBroadcastVariable("vocab")
+              // layer 0 and layer 1
+              var layer0 = iterativeWeights._1
+              var layer1 = iterativeWeights._2
+
+              while (it.hasNext) {
+                var sentence : Array[Int] = it.next()._2
+                train_sentence(vocab ,layer0 : DenseMatrix,layer1 : DenseMatrix,sentence)
+              }
+              out.collect((iterativeWeights._1, iterativeWeights._2))
+            }
+          }
+        }.name("reduceGroup->sentences_withKeys").withBroadcastSet(previousWeights, "iterativeWeights").withBroadcastSet(vocabDS,"vocab")
+          .reduce(new ReduceFunction[(DenseMatrix, DenseMatrix)] {
+          override def reduce(value1: (DenseMatrix, DenseMatrix), value2: (DenseMatrix, DenseMatrix)): (DenseMatrix, DenseMatrix) = {
+            (value1._1,value2._2)
+          }
+        }).name("holger")
+        nextWeights
+      }
+    }
+    finalWeights.print()
+    //println(finalWeights.getExecutionEnvironment.getExecutionPlan())
+
+
+
+    finalWeights.first(1).collect()(0)
+
+    /*
     val expTable = createExpTable()
     println("collecting and training Network")
     //val vocab: Array[VocabWord] = vocabDS.collect().toArray[VocabWord]
@@ -1069,7 +1182,11 @@ object Word2vec {
     var dm2a : Array[DenseMatrix] = layer1New.collect.toArray[DenseMatrix]
     var dm2 : DenseMatrix = dm2a(0)
     (dm1,dm2)
-    }
+    
+  */
+  }
+  
+  
 
     /**
      * trains network with matrices
@@ -1183,6 +1300,7 @@ object Word2vec {
     /**
      * trains network 
      */
+    /*
     def trainNetwork(resultingParameters: ParameterMap, syn0Global: Array[Float], syn1Global: Array[Float], sentencesInNumbers: DataSet[Array[Int]], vocabDS: DataSet[VocabWord]): Unit = {
 
       //TODO: keep as DataSet
@@ -1345,7 +1463,7 @@ object Word2vec {
 
         println("sum error:" + average_abs_error) //its.toDouble)
       }
-    }
+    }*/
     /**
      * Main training function, receives DataSet[String] (of words(!), change this?)
      * @tparam T
@@ -1416,16 +1534,36 @@ object Word2vec {
         //init net?
         println("initializing neural network")
         var (layer0, layer1) = initNetwork(resultingParameters)
+        /*
+        println(layer0)
+        println(layer1)
+
+        vocabDS.getExecutionEnvironment.getConfig.disableSysoutLogging()
+        println(vocabDS.count)
 
 
-
-
+        def minMax(b: Array[Array[Int]]) : (Int, Int) = {
+          var min_glob = 10000
+          var max_glob = -10000
+          for(a <- b) {
+            if(a.size != 0){
+            var (min_loc,max_loc) = a.foldLeft((a(0), a(0))) { case ((min, max), e) => (math.min(min, e), math.max(max, e)) }
+            if(min_glob > min_loc) min_glob = min_loc
+            if(max_glob < max_loc) max_glob = max_loc
+            }
+          }
+          (min_glob,max_glob)
+        }
+        var (min,max) = minMax(sn.toArray[Array[Int]])
+        println("min:" + min)
+        println("max:" + max)
+        */
         //train_sg_test()
-        println("trainign neural network")
+        println("training neural network")
         var res  = trainNetwork_distributed(vectorSize,learningRate, windowSize, numIterations, layer0, layer1,sentenceInNumber, vocabDS)
-        //var res = trainNetwork_distributed(vectorSize,learningRate, windowSize, numIterations, layer0, layer1,sentenceInNumber, vocabDS)
-        // negative sampling -> use unigram
-
+        
+        
+        
         //skipgram ?
 
         // train net

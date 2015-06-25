@@ -9,7 +9,7 @@ import scala.util.Random
 /**
  * Created by nikste on 6/24/15.
  */
-class keyGeneratorFunction(max:Int) extends MapFunction[String, (Int, String)]{
+class keyGeneratorFunction(max:Int) extends MapFunction[Array[Int], (Int, Array[Int])]{
 
   var seed = 10
   @transient
@@ -25,16 +25,13 @@ class keyGeneratorFunction(max:Int) extends MapFunction[String, (Int, String)]{
     r = new Random(seed)
   }
   
-  //def writeObject() = {
-  //  
-  //}
-  def keyGeneratorFunction(max:Int): Unit ={
+  /*def keyGeneratorFunction(max:Int): Unit ={
     r = new scala.util.Random(seed)
     
-  }
+  }*/
   
-  override def map(value: String): (Int, String) = {
-    var R = r.nextInt(max-0) + max;
+  override def map(value: Array[Int]): (Int, Array[Int]) = {
+    var R = r.nextInt(max);
     (R,value)
   }
 }
