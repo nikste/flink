@@ -761,7 +761,7 @@ object Word2vec {
     for(netOutputIdx <- 0 to numOutputs - 1){
       for(i <- 0 to vectorSize - 1){
         if(hidden_net(i) < 0.000000000001){
-          hidden_net(i) = 0.0000000000001
+          hidden_net(i) = 0.000000000001
         }
         layer0(i,inIdx) += -learningRate * errgrad1(i,netOutputIdx) * hidden_net(i) * (1 - hidden_net(i))
       }
