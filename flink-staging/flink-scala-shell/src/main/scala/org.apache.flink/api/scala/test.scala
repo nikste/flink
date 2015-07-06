@@ -20,7 +20,7 @@ package org.apache.flink.api.scala
 /**
  * Created by nikste on 5/28/15.
  */
-
+/*
 import java.lang.Iterable
 import java.util
 
@@ -106,9 +106,9 @@ object test {
     
     
     
-    println("end")
     
-    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/t4_small_small_small_small")
+    
+    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/t4_small_small_small")
     
     println(inputData.count)
     
@@ -118,6 +118,6 @@ object test {
     
     val w2v = Word2vec()
     w2v.fit(inputData)
-    
+    println("end")
   }
-}
+}*/
