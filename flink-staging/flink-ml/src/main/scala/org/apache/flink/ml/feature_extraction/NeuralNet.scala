@@ -31,10 +31,6 @@ class NeuralNet(weights:Array[DenseMatrix[Double]],learningRate : Double) {
     }
   
     def train(input:DenseVector[Double],target:DenseVector[Double]): DenseVector[Double] = {//DenseVector[Double] ={
-
-      
-      
-      
       
       var vectorSize = weights(0).rows
 
