@@ -52,7 +52,10 @@ object testWord2VecNew {
    // var sim =  v*m.t
    // println(sim)
     
-    
+    /*var inputWeights = DenseMatrix.rand[Double](vecSize,vocabSize)
+    var outputWeights = DenseMatrix.rand[Double](vocabSize,vecSize)
+    var input = DenseVector.rand[Double](vocabSize)
+    println( outputWeights * (inputWeights * input))*/
     //inputData.first(1).print
 
     val w2v = Word2Vec()
