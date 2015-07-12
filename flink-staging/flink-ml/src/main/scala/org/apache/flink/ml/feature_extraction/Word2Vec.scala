@@ -566,7 +566,7 @@ object Word2Vec {
   def train_sg_test_iterative(vocab: java.util.ArrayList[VocabWord],layer0:breeze.linalg.DenseMatrix[Double],layer1:breeze.linalg.DenseMatrix[Double],inIdx:Int, outIdx:Int,last_it:Boolean):(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Double) = {
 
     var error = 0.0
-    var learningRate = 0.1
+    var learningRate = 0.01
 
     var vocabword = vocab.get(outIdx)
     var vectorSize = layer0.rows
@@ -576,25 +576,23 @@ object Word2Vec {
     
     var l1 : breeze.linalg.DenseVector[Double] = layer0(::,inIdx)
     
-
-    var neu1e = breeze.linalg.DenseVector.zeros[Double](vectorSize)
+    var neu1e = breeze.linalg.DenseVector.zeros[Double](vectorSize).t
     
     // hidden -> output
     //println("targetword:\n" + vocabword)
     for(output <- 0  to vocabword.codeLen - 1){
-      
       
       var netoutidx = vocabword.point(output)
       var target = vocabword.code(output)
       
       var l2a : Transpose[breeze.linalg.DenseVector[Double]] = layer1(netoutidx,::)
       
-      var in : Double= l1 * l2a.t
+      var in : Double=  l2a * l1
       in = 0.0 - in
       
       //if(in >= -6 && in <= 6){
         var fa = 1.0 / (1.0 + breeze.numerics.exp( in))// 1.0 / (1.0 + exp(- l1 * l2a.T)))  // propagate hidden -> output 
-  
+        
         //println("t=" + target + " fa=" + fa)
         error += breeze.numerics.abs(target - fa)
         var ga : Double = (1 - target - fa) * learningRate // vector of error gradients multiplied by the learning rate
@@ -604,12 +602,12 @@ object Word2Vec {
         layer1(netoutidx,::) := layer1(netoutidx,::) :+ updateLayer1.t  // learn hidden -> output
         
         // compute 
-        neu1e = neu1e :+ (l2a * ga).t
+        neu1e = neu1e :+ l2a * ga
       //println("neu1e=" + neu1e)
       //}
     }
     var arrl : breeze.linalg.DenseVector[Double] = layer0(::,inIdx)
-    var subset =   arrl :+ neu1e 
+    var subset =   arrl :+ neu1e.t 
     layer0(::,inIdx) := subset
     /* predict_word = model.vocab[word]  # target word (NN output)
 
@@ -1013,8 +1011,10 @@ object Word2Vec {
         }
       }.withBroadcastSet(input.getExecutionEnvironment.fromElements(vocabHash), "bcHash")
 
-      var layer0 = breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize)
-      var layer1 = breeze.linalg.DenseMatrix.rand[Double](vocabSize,vectorSize)
+      var layer0 = breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize) - breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize)
+      var layer1 = breeze.linalg.DenseMatrix.rand[Double](vocabSize,vectorSize) - breeze.linalg.DenseMatrix.rand[Double](vocabSize,vectorSize)
+      
+      
       
       //var res = trainNetwork_distributed(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
       
