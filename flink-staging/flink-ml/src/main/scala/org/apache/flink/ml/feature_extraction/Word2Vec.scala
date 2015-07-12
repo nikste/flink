@@ -25,7 +25,7 @@ import breeze._
 import org.slf4j.LoggerFactory
 import org.slf4j.Logger
 
-import breeze.linalg.{DenseMatrix => DenseMatrix}
+import breeze.linalg.{Transpose, DenseMatrix => DenseMatrix}
 
 
 import java.nio.ByteBuffer
@@ -275,7 +275,7 @@ object Word2Vec {
   // ====================================== Parameters =============================================
 
   case object VectorSize extends Parameter[Int] {
-    override val defaultValue: Option[Int] = Some(100)
+    override val defaultValue: Option[Int] = Some(10)
   }
 
   case object LearningRate extends Parameter[Float] {
@@ -570,39 +570,47 @@ object Word2Vec {
 
     var vocabword = vocab.get(outIdx)
     var vectorSize = layer0.rows
-
     // feedforward
     
     // input -> hidden
     
-    var l1 : breeze.linalg.Transpose[breeze.linalg.DenseVector[Double]] = layer0(inIdx,::)
+    var l1 : breeze.linalg.DenseVector[Double] = layer0(::,inIdx)
     
 
-    var neu1e = breeze.linalg.DenseVector.zeros[Double](layer0.cols)
+    var neu1e = breeze.linalg.DenseVector.zeros[Double](vectorSize)
     
     // hidden -> output
+    //println("targetword:\n" + vocabword)
     for(output <- 0  to vocabword.codeLen - 1){
+      
       
       var netoutidx = vocabword.point(output)
       var target = vocabword.code(output)
       
-      var l2a : breeze.linalg.DenseVector[Double] = layer1(::,netoutidx)
+      var l2a : Transpose[breeze.linalg.DenseVector[Double]] = layer1(netoutidx,::)
       
-      var in = l1 dot l2a.t
+      var in : Double= l1 * l2a.t
       in = 0.0 - in
       
-      var fa = 1.0 / (1.0 + breeze.numerics.exp( in))// 1.0 / (1.0 + exp(- l1 * l2a.T)))  // propagate hidden -> output 
-
-      error += breeze.numerics.abs(target - fa)
-      var ga = (1 - target - fa) * learningRate // vector of error gradients multiplied by the learning rate
-
-      layer1(::,netoutidx) :+  (l1 * ga).t  // learn hidden -> output
-      // compute 
-      neu1e :+ ga * l2a
+      //if(in >= -6 && in <= 6){
+        var fa = 1.0 / (1.0 + breeze.numerics.exp( in))// 1.0 / (1.0 + exp(- l1 * l2a.T)))  // propagate hidden -> output 
+  
+        //println("t=" + target + " fa=" + fa)
+        error += breeze.numerics.abs(target - fa)
+        var ga : Double = (1 - target - fa) * learningRate // vector of error gradients multiplied by the learning rate
+        //var ga : Double = -(target - fa) * (fa * ( - fa + 1d))
+        //println(ga)
+        var updateLayer1 =  l1 * ga 
+        layer1(netoutidx,::) := layer1(netoutidx,::) :+ updateLayer1.t  // learn hidden -> output
+        
+        // compute 
+        neu1e = neu1e :+ (l2a * ga).t
+      //println("neu1e=" + neu1e)
+      //}
     }
-    var arrl : breeze.linalg.DenseVector[Double] = layer0(inIdx,::).t
-    var subset =   arrl :+ neu1e
-    layer0(inIdx,::) := subset.t
+    var arrl : breeze.linalg.DenseVector[Double] = layer0(::,inIdx)
+    var subset =   arrl :+ neu1e 
+    layer0(::,inIdx) := subset
     /* predict_word = model.vocab[word]  # target word (NN output)
 
     l1 = context_vectors[context_index]  # input word (NN input/projection layer)
@@ -841,6 +849,9 @@ object Word2Vec {
     for(i <- 0 to maxIterations){
       for(j <- 0  to sentences_collected.length - 1) {
         var sentence = sentences_collected(j)
+        /*if(i >= 30){
+          println("cuidado! peligroso!")
+        }*/
         var res = train_sentence(vocab, layer0New, layer1New, sentence)
         layer0New = res._1
         layer1New = res._2
@@ -1004,6 +1015,7 @@ object Word2Vec {
 
       var layer0 = breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize)
       var layer1 = breeze.linalg.DenseMatrix.rand[Double](vocabSize,vectorSize)
+      
       //var res = trainNetwork_distributed(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
       
       var res = trainNetwork_iterative(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
