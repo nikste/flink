@@ -22,7 +22,7 @@ object testWord2VecNew {
 
     env.getConfig.disableSysoutLogging()
     
-    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/t4_small_small_small_small_small_newlines")
+    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/t4_small_small_small_small_newlines")//"/home/nikste/Downloads/t4_stupid")
 
     //println(inputData.count)
 
