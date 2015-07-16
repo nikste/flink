@@ -58,6 +58,26 @@ object testWord2VecNew {
     println( outputWeights * (inputWeights * input))*/
     //inputData.first(1).print
 
+    /*
+    var value1: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = (breeze.linalg.DenseMatrix.ones[Double](10,10),breeze.linalg.DenseMatrix.zeros[Double](10,10),2)
+    var value2: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = (breeze.linalg.DenseMatrix.zeros[Double](10,10),breeze.linalg.DenseMatrix.ones[Double](10,10),1)
+    
+
+      var w1 = value1._3.toDouble
+      var w2 = value2._3.toDouble
+
+      var total = w1 + w2
+
+      var l1: breeze.linalg.DenseMatrix[Double] = value1._1 * w1
+      l1 = l1 :* value2._1 * w2
+      var l2: breeze.linalg.DenseMatrix[Double] = value1._2 * w1
+      l2 = value2._2 * w2
+      l1 = l1 / total
+      l2 = l2 / total
+    
+    var ret :(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = (l1,l2,total.toInt)
+    println("ret=" + ret)
+*/
     val w2v = Word2Vec()
     w2v.fit(inputDataSeq)
 
