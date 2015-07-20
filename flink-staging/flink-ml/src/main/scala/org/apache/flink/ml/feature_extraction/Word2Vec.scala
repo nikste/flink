@@ -182,7 +182,7 @@ case class VocabWord(
                       var code: Array[Int],
                       var codeLen: Int,
                       var ind: Int // adding index as in 1-hot encoding
-                      ){
+                      ) {
   override def toString(): String ={
     var points = ""
     for (i <- 0 to point.length - 1){points += point(i) + ","}
@@ -621,6 +621,10 @@ object Word2Vec {
 
 
 
+  
+ 
+  
+  
   def trainNetwork_distributed_not_optimized(vectorSize: Int, learningRate: Double, windowSize: Int, numIterations: Int, layer0: breeze.linalg.DenseMatrix[Float], layer1: breeze.linalg.DenseMatrix[Float], sentenceInNumbers: DataSet[Array[Int]], vocabDS: DataSet[VocabWord]): (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = {
 
     // additional parameter batchsize = 
@@ -871,8 +875,7 @@ object Word2Vec {
     var errr : Float = total_error/trainingCount.toFloat
     (layer0New,layer1New,trainingCount, errr,layerModifications)
   }
-  
-  
+
   def trainNetwork_distributed_smart_aggregate(vectorSize: Int, learningRate: Float, windowSize: Int, numIterations: Int, layer0: breeze.linalg.DenseMatrix[Float], layer1: breeze.linalg.DenseMatrix[Float], sentenceInNumbers: DataSet[Array[Int]], vocabDS: DataSet[VocabWord]): (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = {
 
     println("training distributed with smart aggregate")
@@ -889,6 +892,8 @@ object Word2Vec {
 
     var max = num_keys
 
+    var learningRateDS : DataSet[Float] = sentenceInNumbers.getExecutionEnvironment.fromElements(learningRate)
+    
     // (w1,w2)
     var weights : DataSet[(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])] = sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1))//env.fromElements((1,2))
     // touple (key,sentence)
@@ -907,6 +912,7 @@ object Word2Vec {
               var iterativeWeights: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])]("iterativeWeights").get(0)
               var vocab : java.util.ArrayList[VocabWord] = getIterationRuntimeContext.getBroadcastVariable("vocab").asInstanceOf[java.util.ArrayList[VocabWord]]
 
+              var learningRateLocal : Float = getIterationRuntimeContext.getBroadcastVariable("learningRate").asInstanceOf[Float]
               // layer 0 and layer 1
               var layer0 = iterativeWeights._1
               var layer1 = iterativeWeights._2
@@ -918,7 +924,7 @@ object Word2Vec {
               var layerModificationsList : mutable.MutableList[Int] = mutable.MutableList[Int]()
               while (it.hasNext) {
                 var sentence : Array[Int] = it.next()._2
-                var res = train_sentence_smart_aggregate(learningRate, vocab ,layer0 : breeze.linalg.DenseMatrix[Float],layer1 : breeze.linalg.DenseMatrix[Float],sentence)
+                var res = train_sentence_smart_aggregate(learningRateLocal, vocab ,layer0 : breeze.linalg.DenseMatrix[Float],layer1 : breeze.linalg.DenseMatrix[Float],sentence)
                 layer0 = res._1
                 layer1 = res._2
                 trainCounts += res._3
@@ -944,6 +950,7 @@ object Word2Vec {
             }
           }
         }.name("reduceGroup->sentences_withKeys").withBroadcastSet(previousWeights, "iterativeWeights").withBroadcastSet(vocabDS,"vocab")
+          .withBroadcastSet(learningRateDS,"learningRate")
           .groupBy(0).reduceGroup{new GroupReduceFunction[(Int,breeze.linalg.DenseVector[Float]),(Int,breeze.linalg.DenseVector[Float])]{
           override def reduce(values: Iterable[(Int, linalg.DenseVector[Float])], out: Collector[(Int, linalg.DenseVector[Float])]): Unit = {
             var it = values.iterator()
@@ -968,10 +975,9 @@ object Word2Vec {
             }
             out.collect((ind,res))
           }
-        }}.map(x => (breeze.linalg.DenseMatrix.zeros[Float](3,3),breeze.linalg.DenseMatrix.zeros[Float](3,3)))
+        }}.collect()//.map(x => (breeze.linalg.DenseMatrix.zeros[Float](3,3),breeze.linalg.DenseMatrix.zeros[Float](3,3)))
 
-        var nextWeights = updates
-        /*
+        //var nextWeights = updates
         // put together matrices for next iteration
         var it = updates.iterator
         while(it.hasNext){
@@ -983,11 +989,11 @@ object Word2Vec {
             layer0(::,el._1) := el._2
           }
         }
-        */
-        /*
+        
+        
         var executionEnv = sentences_withkeys.first(1).getExecutionEnvironment
         val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])] = executionEnv.fromElements[(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])]((layer0,layer1))
-          */
+          
           
           /*.reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int)] {
           override def reduce(value1: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int), value2: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int)): (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int) = {
