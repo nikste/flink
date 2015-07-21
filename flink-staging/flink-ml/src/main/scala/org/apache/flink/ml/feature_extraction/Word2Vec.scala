@@ -891,7 +891,7 @@ object Word2Vec {
     println("num_keys:" + num_keys)
 
     var max = num_keys
-
+    var vocabSizeDS : DataSet[Int] = sentenceInNumbers.getExecutionEnvironment.fromElements(vocabSize)
     var learningRateDS : DataSet[Float] = sentenceInNumbers.getExecutionEnvironment.fromElements(learningRate)
     
     // (w1,w2)
@@ -904,7 +904,7 @@ object Word2Vec {
     val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])] = weights.iterate(maxIterations)
     {
       previousWeights : DataSet[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])] => {
-        val updates = sentences_withkeys.reduceGroup {
+        val nextWeights = sentences_withkeys.reduceGroup {
           // comput updates of weight matrices per "class" / training data partition
           new RichGroupReduceFunction[(Int, Array[Int]), (Int,breeze.linalg.DenseVector[Float])] {
             override def reduce(values: Iterable[(Int, Array[Int])], out: Collector[(Int,breeze.linalg.DenseVector[Float])]): Unit = {//(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int)]): Unit = {
@@ -912,7 +912,7 @@ object Word2Vec {
               var iterativeWeights: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])]("iterativeWeights").get(0)
               var vocab : java.util.ArrayList[VocabWord] = getIterationRuntimeContext.getBroadcastVariable("vocab").asInstanceOf[java.util.ArrayList[VocabWord]]
 
-              var learningRateLocal : Float = getIterationRuntimeContext.getBroadcastVariable("learningRate").asInstanceOf[Float]
+              var learningRateLocal : Float = getIterationRuntimeContext.getBroadcastVariable("learningRate").get(0).asInstanceOf[Float]
               // layer 0 and layer 1
               var layer0 = iterativeWeights._1
               var layer1 = iterativeWeights._2
@@ -956,61 +956,83 @@ object Word2Vec {
             var it = values.iterator()
             var ind : Int = 0
             var res :breeze.linalg.DenseVector[Float] = null
-            
             if(it.hasNext()) {
-              
               var f = it.next()
               var ind = f._1
               var first = f._2
-              var res: breeze.linalg.DenseVector[Float] = first
-
+              res = first
             }else{
-
               return
-
             }
             while(it.hasNext){
               var changeVector = it.next()._2
               res =( res + changeVector) / 2.0f
             }
+            println("res:" + res)
             out.collect((ind,res))
           }
-        }}.collect()//.map(x => (breeze.linalg.DenseMatrix.zeros[Float](3,3),breeze.linalg.DenseMatrix.zeros[Float](3,3)))
+        }}.rebalance().map(x=>x).reduceGroup{
+          new RichGroupReduceFunction[(Int,breeze.linalg.DenseVector[Float]),(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])]{
+            override def reduce(values: Iterable[(Int, linalg.DenseVector[Float])], out: Collector[(DenseMatrix[Float], DenseMatrix[Float])]): Unit = {
 
+              var iterativeWeights: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])]("iterativeWeights").get(0)
+
+              // layer 0 and layer 1
+              var layer0 = iterativeWeights._1
+              var layer1 = iterativeWeights._2
+
+              var vocabSize : Int = getIterationRuntimeContext.getBroadcastVariable("vocabSize").get(0).asInstanceOf[Int]
+              var it = values.iterator
+
+              while(it.hasNext){
+                var el = it.next
+                if(el._1 > vocabSize - 1){
+                  // layer 1
+                  layer1(el._1 - vocabSize,::) := el._2.t
+                }else{
+                  layer0(::,el._1) := el._2
+                }
+              }
+              out.collect((layer0,layer1))
+            }
+          }
+        }.withBroadcastSet(vocabSizeDS,"vocabSize").withBroadcastSet(previousWeights, "iterativeWeights")
+        /*.reduceGroup{
+          new RichGroupReduceFunction[(Int,breeze.linalg.Vector[Float]),(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])]{
+            override def reduce(values: Iterable[(Int, linalg.Vector[Float])], out: Collector[(DenseMatrix[Float], DenseMatrix[Float])]): Unit = {
+              var iterativeWeights: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])]("iterativeWeights").get(0)
+
+              // layer 0 and layer 1
+              var layer0 = iterativeWeights._1
+              var layer1 = iterativeWeights._2
+
+              var vocabSize : Int = getIterationRuntimeContext.getBroadcastVariable("vocabSize").get(0).asInstanceOf[Int]
+              var it = values.iterator
+
+              while(it.hasNext){
+                var el = it.next
+                if(el._1 > vocabSize - 1){
+                  // layer 1
+                  layer1(el._1 - vocabSize,::) := el._2.t
+                }else{
+                  layer0(::,el._1) := el._2
+                }
+              }
+              out.collect((layer0,layer1))
+            }
+          }
+        }.withBroadcastSet(vocabSizeDS,"vocabSize").withBroadcastSet(previousWeights, "iterativeWeights")//.map(x => (breeze.linalg.DenseMatrix.zeros[Float](3,3),breeze.linalg.DenseMatrix.zeros[Float](3,3)))
+*/
         //var nextWeights = updates
         // put together matrices for next iteration
-        var it = updates.iterator
-        while(it.hasNext){
-          var el = it.next
-          if(el._1 > vocabSize - 1){
-            // layer 1
-            layer1(el._1 - vocabSize,::) := el._2.t
-          }else{
-            layer0(::,el._1) := el._2
-          }
-        }
+
         
         
-        var executionEnv = sentences_withkeys.first(1).getExecutionEnvironment
-        val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])] = executionEnv.fromElements[(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])]((layer0,layer1))
+        //var executionEnv = sentences_withkeys.first(1).getExecutionEnvironment
+        //val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float])] = executionEnv.fromElements[(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])]((layer0,layer1))
           
           
-          /*.reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int)] {
-          override def reduce(value1: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int), value2: (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int)): (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float],Int) = {
 
-            var w1 = value1._3.toFloat
-            var w2 = value2._3.toFloat
-            var total = w1 + w2
-            var l1: breeze.linalg.DenseMatrix[Float] = value1._1 * w1
-            l1 = l1 :+ value2._1 * w2
-            var l2: breeze.linalg.DenseMatrix[Float] = value1._2 * w1
-            l2 = l2 :+ value2._2 * w2
-            l1 = l1 / total
-            l2 = l2 / total
-
-            (l1,l2,total.toInt)
-          }
-        }).map(x => (x._1,x._2))*/
         println("iteration done!")
         nextWeights
       }
