@@ -22,8 +22,8 @@ object testWord2VecNew {
 
     env.getConfig.disableSysoutLogging()
     
-    //var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/enwiki-20141106-pages-articles26.xml-p026625004p029624976/enwiki_res_10000.txt")//("/home/nikste/Downloads/t4_small_small_small_small_newlines")//"/home/nikste/Downloads/t4_stupid")
-    var inputData : DataSet[String] = env.readTextFile("/home/owner/workspace-flink/data/wikipedia/enwiki_res_100000.txt")//("/home/nikste/Downloads/t4_small_small_small_small_newlines")//"/home/nikste/Downloads/t4_stupid")
+    var inputData : DataSet[String] = env.readTextFile("/home/nikste/Downloads/enwiki-20141106-pages-articles26.xml-p026625004p029624976/enwiki_res_1000.txt")//("/home/nikste/Downloads/t4_small_small_small_small_newlines")//"/home/nikste/Downloads/t4_stupid")
+    //var inputData : DataSet[String] = env.readTextFile("/home/owner/workspace-flink/data/wikipedia/enwiki_res_100000.txt")//("/home/nikste/Downloads/t4_small_small_small_small_newlines")//"/home/nikste/Downloads/t4_stupid")
 
 
 
