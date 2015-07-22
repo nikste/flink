@@ -760,6 +760,7 @@ object Word2Vec {
                 layer1 = res._2
                 trainCounts += res._3
               }
+              println("reducing sentences to sentences with keys")
               out.collect((iterativeWeights._1, iterativeWeights._2,trainCounts))//,trainCounts))
             }
           }
@@ -777,6 +778,7 @@ object Word2Vec {
             l1 = l1 / total
             l2 = l2 / total
 
+            println("aggregating weight matrices!!")
             (l1,l2,total.toInt)
           }
         }).map(x => (x._1,x._2))
@@ -881,7 +883,7 @@ object Word2Vec {
     println("training distributed with smart aggregate")
 
     // additional parameter batchsize = 
-    var batchsize = 1000
+    var batchsize = 100
 
     var sentencecount : Long = sentenceInNumbers.count
 
@@ -918,19 +920,23 @@ object Word2Vec {
               var layer1 = iterativeWeights._2
 
               var trainCounts = 0
+              if(vocab.size == 0){
+                println("vocabSize == 0 !!!")
+              }
               
               //TODO: add weighting according to word number of occurences for each training?
               
               var layerModificationsList : mutable.MutableList[Int] = mutable.MutableList[Int]()
               while (it.hasNext) {
                 var sentence : Array[Int] = it.next()._2
-                var res = train_sentence_smart_aggregate(learningRateLocal, vocab ,layer0 : breeze.linalg.DenseMatrix[Float],layer1 : breeze.linalg.DenseMatrix[Float],sentence)
+                var res = train_sentence_smart_aggregate(learningRateLocal, vocab ,layer0,layer1,sentence)
                 layer0 = res._1
                 layer1 = res._2
                 trainCounts += res._3
                 layerModificationsList = layerModificationsList ++ res._5
               }
-              
+              //TODO: change to LONG!!
+              var vocabSize :Int = getIterationRuntimeContext.getBroadcastVariable("vocabSize").get(0).asInstanceOf[Int]
               // collect changes only
               
               // only distinct changes:
@@ -949,20 +955,23 @@ object Word2Vec {
               //out.collect((iterativeWeights._1, iterativeWeights._2,trainCounts))//,trainCounts))
             }
           }
-        }.name("reduceGroup->sentences_withKeys").withBroadcastSet(previousWeights, "iterativeWeights").withBroadcastSet(vocabDS,"vocab")
+        }.name("reduceGroup->sentences_withKeys")
+          .withBroadcastSet(previousWeights, "iterativeWeights")
+          .withBroadcastSet(vocabDS,"vocab")
           .withBroadcastSet(learningRateDS,"learningRate")
-          .groupBy(0).reduceGroup{new GroupReduceFunction[(Int,breeze.linalg.DenseVector[Float]),(Int,breeze.linalg.DenseVector[Float])]{
+          .withBroadcastSet(vocabSizeDS,"vocabSize")
+          .groupBy(0)
+          .reduceGroup{
+          new GroupReduceFunction[(Int,breeze.linalg.DenseVector[Float]),(Int,breeze.linalg.DenseVector[Float])]{
           override def reduce(values: Iterable[(Int, linalg.DenseVector[Float])], out: Collector[(Int, linalg.DenseVector[Float])]): Unit = {
             var it = values.iterator()
             var ind : Int = 0
             var res :breeze.linalg.DenseVector[Float] = null
             if(it.hasNext()) {
               var f = it.next()
-              var ind = f._1
+              ind = f._1
               var first = f._2
               res = first
-            }else{
-              return
             }
             while(it.hasNext){
               var changeVector = it.next()._2
@@ -971,7 +980,7 @@ object Word2Vec {
             println("res:" + res)
             out.collect((ind,res))
           }
-        }}.rebalance().map(x=>x).reduceGroup{
+        }}.name("aggregating vectors").reduceGroup{
           new RichGroupReduceFunction[(Int,breeze.linalg.DenseVector[Float]),(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])]{
             override def reduce(values: Iterable[(Int, linalg.DenseVector[Float])], out: Collector[(DenseMatrix[Float], DenseMatrix[Float])]): Unit = {
 
@@ -996,7 +1005,8 @@ object Word2Vec {
               out.collect((layer0,layer1))
             }
           }
-        }.withBroadcastSet(vocabSizeDS,"vocabSize").withBroadcastSet(previousWeights, "iterativeWeights")
+        }.name("finalizing matrices").withBroadcastSet(vocabSizeDS,"vocabSize")
+          .withBroadcastSet(previousWeights, "iterativeWeights")
         /*.reduceGroup{
           new RichGroupReduceFunction[(Int,breeze.linalg.Vector[Float]),(breeze.linalg.DenseMatrix[Float],breeze.linalg.DenseMatrix[Float])]{
             override def reduce(values: Iterable[(Int, linalg.Vector[Float])], out: Collector[(DenseMatrix[Float], DenseMatrix[Float])]): Unit = {
