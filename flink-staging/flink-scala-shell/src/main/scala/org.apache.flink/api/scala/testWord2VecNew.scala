@@ -1,6 +1,6 @@
 package org.apache.flink.api.scala
 
-import java.io.FileWriter
+import java.io._
 import java.lang
 
 import org.apache.flink.api.common.functions.{FlatMapFunction, RichReduceFunction, ReduceFunction, RichGroupReduceFunction}
@@ -8,6 +8,7 @@ import org.apache.flink.ml.feature_extraction.Word2Vec
 import breeze.linalg._
 import org.apache.flink.util.Collector
 
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -96,9 +97,49 @@ object testWord2VecNew {
 
   // var inputDataSeq = env.readTextFile("/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-10000.txt").map(line => line.split(" "))
   //  inputDataSeq = inputDataSeq.filter(_.length > 1)
+   /* var dmbefore = breeze.linalg.DenseMatrix((1.0,2.0),(3.0,4.0))
+  val dm = breeze.linalg.csvwrite(new File("/home/nikste/workspace-flink/datasets/matrix"),dmbefore,separator=';')
 
-    var inputDataSeq = env.readTextFile("/home/nikste/workspace-flink/datasets/text8").map(line => line.split(" "))
+    println("densematrix before")
+    println(dmbefore)
+  val dmafter = breeze.linalg.csvread(new File("/home/nikste/workspace-flink/datasets/matrix"),separator=';')
+    println("densematrix after")
+    println(dmafter)
+
+
+
+    var hashmap = mutable.HashMap.empty[String, breeze.linalg.DenseVector[Double]]
+
+    hashmap += "test1" -> breeze.linalg.DenseVector(1.0,1.0,1.0)
+    hashmap += "test2" -> breeze.linalg.DenseVector(2.0,2.0,2.0)
+
+    println("before")
+    for(key <- hashmap){
+      println(key)
+    }
+
+    var f = new File("/home/nikste/workspace-flink/datasets/hashmap")
+    var fos = new FileOutputStream(f)
+    var oos = new ObjectOutputStream(fos)
+    oos.writeObject(hashmap)
+    oos.close
+
+
+    var fis = new FileInputStream(f)
+    var ois = new ObjectInputStream(fis)
+    var hashmapRead : mutable.HashMap[String, breeze.linalg.DenseVector[Double]]= ois.readObject().asInstanceOf[ mutable.HashMap[String, breeze.linalg.DenseVector[Double]]]
+    ois.close()
+
+    println("after")
+    for(key <- hashmapRead){
+      println(key)
+    }
+*/
+
+    var inputDataSeq = env.readTextFile("/media/nikste/moarspace/workspace-flink/datasets/text8").map(line => line.split(" "))
     val w2v = Word2Vec()
+
+
    w2v.fit(inputDataSeq)
    println("end")
 

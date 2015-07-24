@@ -2,7 +2,7 @@ package org.apache.flink.ml.feature_extraction
 
 
 
-import java.io.{ObjectInputStream, IOException}
+import java.io._
 import java.lang.Iterable
 import java.text.SimpleDateFormat
 import java.util
@@ -11,11 +11,12 @@ import java.util.{Random => JavaRandom}
 import breeze.numerics.{abs, exp}
 import org.apache.flink.api.common.functions._
 import org.apache.flink.api.common.operators.Order
+import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala._
 import org.apache.flink.ml.common.{Parameter, ParameterMap}
 import org.apache.flink.ml.feature_extraction.Word2Vec._
 import org.apache.flink.ml.math._
-import org.apache.flink.ml.pipeline.{ FitOperation, Transformer}
+import org.apache.flink.ml.pipeline.{TransformOperation, FitOperation, Transformer}
 import org.apache.flink.util.Collector
 
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -29,6 +30,7 @@ import breeze.linalg.{Transpose, DenseMatrix => DenseMatrix}
 
 
 import java.nio.ByteBuffer
+import scala.reflect.ClassTag
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
@@ -283,11 +285,11 @@ object Word2Vec {
   }
 
   case object NumIterations extends Parameter[Int] {
-    override val defaultValue: Option[Int] = Some(1)
+    override val defaultValue: Option[Int] = Some(5)
   }
 
   case object MinCount extends Parameter[Int] {
-    override val defaultValue: Option[Int] = Some(50)
+    override val defaultValue: Option[Int] = Some(5)
   }
 
   case object WindowSize extends Parameter[Int] {
@@ -623,11 +625,6 @@ object Word2Vec {
   }
 
 
-
-  
- 
-  
-  
   def trainNetwork_distributed_not_optimized(vectorSize: Int, learningRate: Double, windowSize: Int, numIterations: Int, layer0: breeze.linalg.DenseMatrix[Float], layer1: breeze.linalg.DenseMatrix[Float], sentenceInNumbers: DataSet[Array[Int]], vocabDS: DataSet[VocabWord]): (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = {
 
     // additional parameter batchsize = 
@@ -1085,23 +1082,25 @@ object Word2Vec {
     var res = finalWeights.first(1).collect()(0)
     (res._1,res._2)
   }
-  def trainNetwork_iterative(vectorSize: Int, learningRate: Double, windowSize: Int, numIterations: Int, layer0: breeze.linalg.DenseMatrix[Float], layer1: breeze.linalg.DenseMatrix[Float], sentenceInNumbers: DataSet[Array[Int]], vocabDS: DataSet[VocabWord]): (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = {
+  def trainNetwork_iterative(vectorSize: Int, learningRate: Double, windowSize: Int, numIterations: Int, layer0: breeze.linalg.DenseMatrix[Float], layer1: breeze.linalg.DenseMatrix[Float], sentenceInNumbers: DataSet[Array[Int]]): (breeze.linalg.DenseMatrix[Float], breeze.linalg.DenseMatrix[Float]) = {
     
     println("training iterative")
     
     // additional parameter batchsize = 
-    var batchsize = 100
+    var batchsize = 1000
 
     var sentencecount : Long = sentenceInNumbers.count
 
     // number of keys = sentencecounts / batchsize
     var num_keys : Long = sentencecount / batchsize
 
-    var maxIterations : Int = 5
+    var maxIterations : Int = 1
     //var iterativeOperator = weights.iterate(maxIterations)
-    var vocabSeq:Seq[VocabWord] =  vocabDS.collect()
+    /*var vocabSeq:Seq[VocabWord] = vocabDS.collect()
     var vocab: java.util.ArrayList[VocabWord] = new java.util.ArrayList[VocabWord]()
-    
+    */
+    var vocabSeq = this.vocab
+    var vocab: java.util.ArrayList[VocabWord] = new java.util.ArrayList[VocabWord]()
     for(i <- 0 to vocabSeq.length - 1){
       vocab.add(vocabSeq(i))
     }
@@ -1135,6 +1134,106 @@ object Word2Vec {
     
     (layer0New.copy,layer1New.copy)
   }
+  var word2VecMap = mutable.HashMap.empty[String, breeze.linalg.DenseMatrix[Float]]
+  var wordVecs : breeze.linalg.DenseMatrix[Float] = null
+  var normsLayer0 : breeze.linalg.DenseVector[Float] = null
+  var vocabGlob : Seq[VocabWord] = null
+
+  def performTrain(input: DataSet[Array[String]]): Unit ={
+    // remove sentences that have length 1 (just words without context)
+    println("before filtering:" + input.count())
+    var input_filtered = input.flatMap{
+      new FlatMapFunction[Array[String],Array[String]]{
+        override def flatMap(value: Array[String], out: Collector[Array[String]]): Unit = {
+          if(value.length > MAX_SENTENCE_LENGTH){
+            var intermediateSentence : mutable.ArrayBuffer[String] = new ArrayBuffer[String]()
+            for(i <- 0 to value.length - 1){
+              intermediateSentence += value(i)
+              if(intermediateSentence.size >= MAX_SENTENCE_LENGTH){
+                out.collect(intermediateSentence.toArray[String])
+                intermediateSentence = new ArrayBuffer[String]()
+              }
+            }
+          }else{
+            out.collect(value)
+          }
+        }
+      }
+    }filter(_.length > 1)
+    println("filtered:" + input_filtered.count)
+    var words = input_filtered.flatMap(new FlatMapFunction[Array[String],String] {
+      override def flatMap(value: Array[String], out: Collector[String]): Unit = {
+        var it = value.iterator
+        while(it.hasNext){
+          out.collect(it.next())
+        }
+      }
+    })
+
+
+    input_filtered.getExecutionEnvironment.getConfig.disableSysoutLogging()
+    // Get different words and sort them for their frequency
+    println("initializing vocab")
+    learnVocab(words)
+    println("creating binary tree")
+    createBinaryTree()
+
+    // convert words inarray to 1-hot encoding
+    var sentencesInts: DataSet[Array[Int]] = input_filtered.map {
+      new RichMapFunction[Array[String], Array[Int]] {
+        override def map(value: Array[String]): Array[Int] = {
+
+          val hashList: java.util.List[mutable.HashMap[String, Int]] = getRuntimeContext.getBroadcastVariable[mutable.HashMap[String, Int]]("bcHash")
+          val hash: mutable.HashMap[String, Int] = hashList.get(0);
+
+          var list = ListBuffer[Int]()
+
+          var it = value.iterator
+          while(it.hasNext) {
+            val wordInt = hash.get(it.next())
+
+            wordInt match {
+              case Some(w) => list.append(w)
+              case None =>
+            }
+          }
+          list.toArray
+        }
+      }
+    }.withBroadcastSet(input_filtered.getExecutionEnvironment.fromElements(vocabHash), "bcHash")
+
+    sentencesInts = sentencesInts.filter(_.length > 1)
+
+
+    var layer0 : breeze.linalg.DenseMatrix[Float] = breeze.linalg.DenseMatrix.tabulate[Float](vectorSize, vocabSize){case (i, j) =>( Random.nextInt(1000).toFloat - 500.0f) / 500.0f}//breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize).asInstanceOf[breeze.linalg.DenseMatrix[Float]]//,Seq.fill(vectorSize,vocabSize)(Random.nextInt(1000).toFloat - 500.0f / 500.0f).toArray[Float])// - breeze.linalg.DenseMatrix.rand[Float](vectorSize,vocabSize)
+    var layer1 : breeze.linalg.DenseMatrix[Float] = breeze.linalg.DenseMatrix.tabulate[Float](vocabSize,vectorSize){case (i, j) => ( Random.nextInt(1000).toFloat - 500.0f) / 500.0f}//breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize).asInstanceOf[breeze.linalg.DenseMatrix[Float]]//,Seq.fill(vectorSize,vocabSize)(Random.nextInt(1000).toFloat - 500.0f / 500.0f).toArray[Float])// - breeze.linalg.DenseMatrix.rand[Float](vectorSize,vocabSize)
+    //breeze.linalg.DenseMatrix.rand[Double](vocabSize,vectorSize).asInstanceOf[breeze.linalg.DenseMatrix[Float]]// - breeze.linalg.DenseMatrix.rand[Float](vocabSize,vectorSize)
+
+    //var res = trainNetwork_distributed_not_optimized(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
+    var res = trainNetwork_iterative(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts )
+
+    //var res = trainNetwork_distributed_smart_aggregate(layer0,layer1,sentencesInts)
+    ////var res = trainNetwork_distributed(layer0,layer1,sentencesInts)
+    //var res = trainNetwork_distributed_parameter_parallelism(layer0,layer1,sentencesInts)
+
+    layer0 = res._1
+    layer1 = res._2
+    println("done training network")
+
+    // construct word-> vec map
+    word2VecMap = mutable.HashMap.empty[String, breeze.linalg.DenseMatrix[Float]]
+    var i = 0
+    for (i <- 0 to vocabSize -1) {
+      val word = vocab(i).word
+      val vector = layer0(::,i)
+      word2VecMap += word -> vector.toDenseMatrix
+    }
+
+    // compute word vector norms:
+    normsLayer0 = breeze.linalg.norm(layer0,breeze.linalg.Axis._0,2).toDenseVector.mapValues(_.toFloat)
+    wordVecs = layer0.copy
+    vocabGlob = vocab
+  }
   /**
    * Main training function, receives DataSet[String] (of words(!), change this?)
    * @return
@@ -1142,38 +1241,6 @@ object Word2Vec {
   implicit def fitWord2Vec = new FitOperation[Word2Vec, Array[String]] {
     override def fit(instance: Word2Vec, fitParameters: ParameterMap, input: DataSet[Array[String]])
     : Unit = {
-      
-      
-      // remove sentences that have length 1 (just words without context)
-      println("before filtering:" + input.count())
-      var input_filtered = input.flatMap{
-        new FlatMapFunction[Array[String],Array[String]]{
-          override def flatMap(value: Array[String], out: Collector[Array[String]]): Unit = {
-            if(value.length > MAX_SENTENCE_LENGTH){
-              var intermediateSentence : mutable.ArrayBuffer[String] = new ArrayBuffer[String]()
-              for(i <- 0 to value.length - 1){
-                intermediateSentence += value(i)
-                if(intermediateSentence.size >= MAX_SENTENCE_LENGTH){
-                  out.collect(intermediateSentence.toArray[String])
-                  intermediateSentence = new ArrayBuffer[String]()
-                }
-              }
-            }else{
-              out.collect(value)
-            }
-          }
-        }
-      }filter(_.length > 1)
-      println("filtered:" + input_filtered.count)
-      var words = input_filtered.flatMap(new FlatMapFunction[Array[String],String] {
-        override def flatMap(value: Array[String], out: Collector[String]): Unit = {
-          var it = value.iterator
-          while(it.hasNext){
-            out.collect(it.next())
-          }
-        }
-      })
-      
       // load parameters
       val resultingParameters = instance.parameters ++ fitParameters
       minCount = resultingParameters(MinCount)
@@ -1203,131 +1270,146 @@ object Word2Vec {
         case None => throw new Exception("Could not retrieve vector size of hidden layer, none specified?")
       }
 
+      performTrain(input)
 
-      input_filtered.getExecutionEnvironment.getConfig.disableSysoutLogging()
-      // Get different words and sort them for their frequency
-      println("initializing vocab")
-      learnVocab(words)
-      println("creating binary tree")
-      createBinaryTree()
+      var fp  = "/media/nikste/moarspace/workspace-flink/datasets/text8_iterative"
+      //testSaveLoadModel("/home/nikste/workspace-flink/datasets/text8mb")
+      //loadModel(fp)
 
+      saveModel(fp)
 
+      //printFirstN(findSynonyms("china"),10)
+      var childVec =findSynonyms("man")
+      println(childVec)
+      printFirstN(childVec,5)
+      println("king")
+      printFirstN(findSynonyms("king") ,5)
+      println("woman")
+      printFirstN(findSynonyms("woman"),5)
+      //printFirstN(findSynonyms("thailand"),10)
 
-      // convert words inarray to 1-hot encoding
-      var sentencesInts: DataSet[Array[Int]] = input_filtered.map {
-        new RichMapFunction[Array[String], Array[Int]] {
-          override def map(value: Array[String]): Array[Int] = {
-
-            val hashList: java.util.List[mutable.HashMap[String, Int]] = getRuntimeContext.getBroadcastVariable[mutable.HashMap[String, Int]]("bcHash")
-            val hash: mutable.HashMap[String, Int] = hashList.get(0);
-
-            var list = ListBuffer[Int]()
-            
-            var it = value.iterator
-            while(it.hasNext) {
-              val wordInt = hash.get(it.next())
-              
-              wordInt match {
-                case Some(w) => list.append(w)
-                case None =>
-              }
-            }
-            list.toArray
-          }
-        }
-      }.withBroadcastSet(input_filtered.getExecutionEnvironment.fromElements(vocabHash), "bcHash")
-
-      sentencesInts = sentencesInts.filter(_.length > 1)
-     
-      var layer0 : breeze.linalg.DenseMatrix[Float] = breeze.linalg.DenseMatrix.tabulate[Float](vectorSize, vocabSize){case (i, j) =>( Random.nextInt(1000).toFloat - 500.0f) / 500.0f}//breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize).asInstanceOf[breeze.linalg.DenseMatrix[Float]]//,Seq.fill(vectorSize,vocabSize)(Random.nextInt(1000).toFloat - 500.0f / 500.0f).toArray[Float])// - breeze.linalg.DenseMatrix.rand[Float](vectorSize,vocabSize)
-      var layer1 : breeze.linalg.DenseMatrix[Float] = breeze.linalg.DenseMatrix.tabulate[Float](vocabSize,vectorSize){case (i, j) => ( Random.nextInt(1000).toFloat - 500.0f) / 500.0f}//breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize).asInstanceOf[breeze.linalg.DenseMatrix[Float]]//,Seq.fill(vectorSize,vocabSize)(Random.nextInt(1000).toFloat - 500.0f / 500.0f).toArray[Float])// - breeze.linalg.DenseMatrix.rand[Float](vectorSize,vocabSize)
-      //breeze.linalg.DenseMatrix.rand[Double](vocabSize,vectorSize).asInstanceOf[breeze.linalg.DenseMatrix[Float]]// - breeze.linalg.DenseMatrix.rand[Float](vocabSize,vectorSize)
-
-      //var res = trainNetwork_distributed_not_optimized(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
-      //var res = trainNetwork_iterative(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
-      
-      //var res = trainNetwork_distributed_smart_aggregate(layer0,layer1,sentencesInts)
-      (layer0,layer1) = trainNetwork_distributed(layer0,layer1,sentencesInts)
-      //var res = trainNetwork_distributed_parameter_parallelism(layer0,layer1,sentencesInts)
-
-      println("done training network")
-
-      // construct word-> vec map
-      word2VecMap = mutable.HashMap.empty[String, breeze.linalg.DenseMatrix[Float]]
-      var i = 0
-      for (i <- 0 to vocabSize -1) {
-        val word = vocab(i).word
-        val vector = layer0(::,i)
-        word2VecMap += word -> vector.toDenseMatrix
-      }
-      
-      // compute word vector norms:
-
-      normsLayer0 = breeze.linalg.norm(layer0,breeze.linalg.Axis._0,2).toDenseVector.mapValues(_.toFloat)
-      wordVecs = layer0.copy
-      vocabGlob = vocab
+      println("+woman + king  - man")
+      printFirstN(findSynonyms(Array[String]("woman","king"),Array[String]("man")),5)
+      println("+best + bad - better")
+      printFirstN(findSynonyms(Array[String]("best","bad"),Array[String]("better")),5)
 
 
-      println("looking for china")
-      // get word for china
-      var ch = word2VecMap.get("china")
-      var china = breeze.linalg.DenseVector(0.0).asInstanceOf[breeze.linalg.DenseVector[Float]]
-      ch match {
-        case Some(ni) => china = ni.toDenseVector.asInstanceOf[breeze.linalg.DenseVector[Float]]
-        case None => throw new Exception("Could not retrieve word vector for China")
-      }
-      //china  = breeze.linalg.normalize(china,2)//breeze.linalg.normalize(china,breeze.linalg.Axis._0,2)
-      
-      //println(normalizedLayer0.rows + ";" + normalizedLayer0.cols)
-      var normChina = breeze.linalg.norm(china,2)
-      var cosDists : breeze.linalg.DenseVector[Float] = breeze.linalg.DenseVector.zeros[Float](vocabSize)
-      for(i <- 0 to vocabSize - 1){
-        cosDists(i) =   wordVecs(::,i).t * china
-      }
 
-      var resList: ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] = new ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])]()
+      /*var king = getWordVector("king")
+      var woman = getWordVector("woman")
+      var man = getWordVector("man")
 
-      println("norms layer0 = \n" + normsLayer0)
-      for(i <- 0 to vocabSize -1){
-        resList += new Tuple3(vocab(i).word, cosDists(i) / (normsLayer0(i) * normChina)  ,layer0(::,i).toDenseVector )
-      }
-      resList = resList.sortBy(_._2).reverse
-      for(i <- 0 to 5){//vocabSize - 1){
-        println(resList(i))
-      }
-      findSimilar("china")
-      findSimilar("child")
-      findSimilar("computer")
-      findSimilar("dog")
-      findSimilar("thailand")
-
-      println("computing berlin - germany + france")
-      var berlin = getWordVector("berlin")
-      var germany = getWordVector("germany")
-      var france = getWordVector("france")
-
-      var berlingermanyfrance = berlin - germany + france
-
-
+      var berlingermanyfrance = king - man + woman
+      println(berlingermanyfrance)
+      printFirstN(findSynonyms(berlingermanyfrance),10)
+      */
     }
-    var word2VecMap = mutable.HashMap.empty[String, breeze.linalg.DenseMatrix[Float]]
-    var wordVecs : breeze.linalg.DenseMatrix[Float] = null
-    var normsLayer0 : breeze.linalg.DenseVector[Float] = null
-    var vocabGlob : Seq[VocabWord] = null
+
+
 
     def getWordVector(input : String) : breeze.linalg.DenseVector[Float] = {
       var ch = word2VecMap.get(input)
       var china = breeze.linalg.DenseVector(0.0).asInstanceOf[breeze.linalg.DenseVector[Float]]
       ch match {
         case Some(ni) => china = ni.toDenseVector.asInstanceOf[breeze.linalg.DenseVector[Float]]
-        case None => throw new Exception("Could not retrieve word vector for China")
+        case None => throw new Exception("Could not retrieve word vector for " + input)
       }
       china
     }
+
+
+    def testSaveLoadModel(filepath: String) : Unit = {
+      saveModel(filepath)
+      var word2VecMapAntes = word2VecMap
+      var wordVecsAntes = wordVecs.copy
+
+      loadModel(filepath)
+
+      if( word2VecMapAntes != word2VecMap){
+        println("word2Vec map differs!")
+        println("before:")
+        println(word2VecMapAntes)
+        println("after:")
+        println(word2VecMap)
+      }
+      if( wordVecsAntes != wordVecs){
+        println("wordVecs differ!!")
+        println("before:")
+        println(wordVecsAntes)
+        println("after:")
+        println(wordVecs)
+      }
+
+
+    }
+
+
+    def saveModel(filepath : String): Unit ={
+
+      println("saving word2VecMap")
+
+      var f = new File(filepath + "_word2VecMap")
+      var fos = new FileOutputStream(f)
+      var oos = new ObjectOutputStream(fos)
+
+      try{
+        oos.writeObject(word2VecMap)
+      }finally{
+        oos.close
+      }
+
+
+      println("saving vocab")
+      f = new File(filepath + "_vocab")
+      fos = new FileOutputStream(f)
+      var oosVocab = new ObjectOutputStream(fos)
+      try{
+        oosVocab.writeObject(vocabGlob)
+      }finally{
+        oosVocab.close()
+      }
+
+
+      println("saving wordVectorMatrix")
+      val dm = breeze.linalg.csvwrite(new File(filepath + "_wordVecs"),breeze.linalg.convert(wordVecs,Double),separator=';')
+    }
+
+    def loadModel(filepath : String): Unit = {
+      println("loading word2VecMap")
+      var f = new File(filepath + "_word2VecMap")
+      var fis = new FileInputStream(f)
+      var ois = new ObjectInputStream(fis)
+      try{
+      word2VecMap = ois.readObject().asInstanceOf[ mutable.HashMap[String, breeze.linalg.DenseMatrix[Float]]]
+      }finally{
+        ois.close()
+      }
+
+      println("loading vocab")
+      var f1 = new File(filepath + "_vocab")
+      var fis1 = new FileInputStream(f1)
+      var ois1 = new ObjectInputStream(fis1)
+      try{
+        vocabGlob = ois1.readObject().asInstanceOf[ Seq[VocabWord]]
+      }finally{
+        ois1.close()
+      }
+      println("vocabSize:" + vocabGlob.size)
+      vocabSize = vocabGlob.size
+
+
+      println("word2VecMap: size:"+ word2VecMap.size)
+
+      println("loading wordVectorMatrix")
+      wordVecs = breeze.linalg.convert(breeze.linalg.csvread(new File(filepath + "_wordVecs"),separator=';'),Float)
+      normsLayer0 = breeze.linalg.norm(wordVecs,breeze.linalg.Axis._0,2).toDenseVector.mapValues(_.toFloat)
+      println("wordVecs: rows:"+wordVecs.rows + " cols:" + wordVecs.cols)
+    }
+
     /**
      * computes cosine distance
      */
-    def cosineDists(wordVec : breeze.linalg.DenseVector[Float]): breeze.linalg.DenseVector[Float] = {
+    def computeCosDists(wordVec : breeze.linalg.DenseVector[Float]): breeze.linalg.DenseVector[Float] = {
       var normWordVec = breeze.linalg.norm(wordVec,2)
       var cosDists : breeze.linalg.DenseVector[Float] = breeze.linalg.DenseVector.zeros[Float](vocabSize)
       for( i <- 0 to vocabSize - 1){
@@ -1335,46 +1417,128 @@ object Word2Vec {
       }
       cosDists
     }
-    /*
-      var normChina = breeze.linalg.norm(china,2)
-      var cosDists : breeze.linalg.DenseVector[Float] = breeze.linalg.DenseVector.zeros[Float](vocabSize)
-      for(i <- 0 to vocabSize - 1){
-        cosDists(i) =   wordVecs(::,i).t * china
+
+
+
+    def printFirstN(similarWords : ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])], n : Int) : Unit = {
+
+      var similarWordsSorted = similarWords.sortBy(_._2).reverse
+      for(i <- 0 to n - 1){
+        println(similarWordsSorted(i))
+      }
+    }
+
+    /**
+     * does computation with wordvectors with weighted average, as in gensim and c++ implementation
+     * @param positive
+     * @param negative
+     * @return
+     */
+    def findSynonyms(positive : Array[String], negative : Array[String]) :ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] = {
+      // compute result:
+
+      var positiveCos: Array[breeze.linalg.DenseVector[Float]] = new Array[breeze.linalg.DenseVector[Float]](positive.length)
+      for(i <- 0 to positive.length - 1){
+        positiveCos(i) = computeCosDists(getWordVector(positive(i)))
+      }
+      var negativeCos: Array[breeze.linalg.DenseVector[Float]] = new Array[breeze.linalg.DenseVector[Float]](negative.length)
+      for(i <- 0  to negative.length - 1){
+        negativeCos(i) = computeCosDists(getWordVector(negative(i)))
+      }
+
+      var resCos: breeze.linalg.DenseVector[Float] = breeze.linalg.DenseVector.zeros[Float](vocabSize)
+      for(i <- 0 to positive.length - 1){
+        resCos  = resCos + positiveCos(i)
+      }
+      for(i <- 0 to negativeCos.length - 1){
+        resCos = resCos - negativeCos(i)
+      }
+
+      var resList = ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])]()
+      for( i <- 0 to vocabSize - 1){
+        resList += new Tuple3(vocabGlob(i).word,resCos(i),wordVecs(::,i))
+      }
+
+
+      /*var positiveWW: Array[breeze.linalg.DenseVector[Float]] = new Array[breeze.linalg.DenseVector[Float]](positive.length)
+      for (i <- 0 to positive.length - 1) {
+        println("getting " + positive(i))
+        positiveWW(i) = getWordVector(positive(i))
+        //positiveWW(i) = positiveWW(i) / breeze.linalg.norm(positiveWW(i)).asInstanceOf[Float]
+      }
+      var negativeWW: Array[breeze.linalg.DenseVector[Float]] = new Array[breeze.linalg.DenseVector[Float]](negative.length)
+      for (i <- 0 to negative.length - 1){
+        println("substracting " + negative(i))
+        negativeWW(i) = getWordVector(negative(i))
+        //negativeWW(i) = negativeWW(i) / breeze.linalg.norm(negativeWW(i)).asInstanceOf[Float]
+      }
+
+      // compute resulting vector and then normalize it.
+      var resVec = breeze.linalg.DenseVector.fill[Float](vectorSize)(0.0f)
+      for(i <- 0 to negativeWW.length - 1){
+        resVec -= negativeWW(i)
+      }
+      for(i <- 0 to positiveWW.length - 1){
+        resVec += positiveWW(i)
+      }
+      resVec = resVec / breeze.linalg.norm(resVec,2).asInstanceOf[Float]
+      var resList = findSynonyms(resVec)
+      */
+      /// / compute weighted average of synonyms
+      /*var positiveWW = new Array[ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])]](positive.length)
+      var negativeWW = new Array[ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])]](negative.length)
+
+      for (i <- 0 to positiveWW.length - 1){
+        positiveWW(i) = findSynonyms(positive(i))
+      }
+      for (i <- 0 to negativeWW.length - 1){
+        negativeWW(i) = findSynonyms(negative(i))
+      }
+
+      var reslist = ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])]()
+      // compute weighted average:
+      for (i <- 0 to vocabSize - 1){
+        var aux :ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] = ListBuffer()
+        aux += new Tuple3(vocabGlob(i).word,0.0d,breeze.linalg.DenseVector.fill[Float](vectorSize)(0.0f))
+
+        for(n <- 0 to negativeWW.length - 1){
+          var cosdist = (aux(0)._2.asInstanceOf[Double] - negativeWW(n)(i)._2)
+          var vec  = (aux(0)._3.asInstanceOf[breeze.linalg.DenseVector[Float]] - negativeWW(n)(i)._3)
+          aux(0) = (aux(0)._1,cosdist,vec)
+
+        }
+        for(n <- 0 to positiveWW.length - 1){
+          var cosdist = (aux(0)._2.asInstanceOf[Double] - positiveWW(n)(i)._2)
+          var vec  = (aux(0)._3.asInstanceOf[breeze.linalg.DenseVector[Float]] - positiveWW(n)(i)._3)
+          aux(0) = (aux(0)._1,cosdist,vec)
+        }
+        reslist += Tuple3[String,Double,breeze.linalg.DenseVector[Float]](aux(0)._1.asInstanceOf[String],aux(0)._2.asInstanceOf[Double],aux(0)._3.asInstanceOf[breeze.linalg.DenseVector[Float]])
       }*/
+      resList
+    }
 
-    def findSimilar(wordVec : breeze.linalg.DenseVector[Float]): ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] ={
-
-      var cosDists = cosineDists(wordVec)
+    def findSynonyms(wordVec: breeze.linalg.DenseVector[Float]): ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] = {
+      var cosDists = computeCosDists(wordVec)
       var resList: ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] = new ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])]()
 
       for(i <- 0 to vocabSize -1){
         resList += new Tuple3(vocabGlob(i).word, cosDists(i) / normsLayer0(i)  ,wordVecs(::,i).toDenseVector )
       }
-      resList = resList.sortBy(_._2).reverse
       resList
     }
 
-    def convertVectorsToWords(): ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] ={
-
+    def findSynonyms(inputWord : String): ListBuffer[(String,Double,breeze.linalg.DenseVector[Float])] = {
+      var wordVector = getWordVector(inputWord)
+      var resList = findSynonyms(wordVector)
+      resList
     }
-    /**
-     * finds similar vectors (synonyms)
-     */
-    def findSimilar(inputWord : String): Unit ={
-      println("looking for:" + inputWord)
-      // get word for china
-      var ch = word2VecMap.get(inputWord)
-      var china = breeze.linalg.DenseVector(0.0f)
-      ch match {
-        case Some(ni) => china = ni.toDenseVector
-        case None => throw new Exception("Could not retrieve word vector for " + inputWord + " not in training set?")
-      }
 
-      var resList = findSimilar(china)
-
-      for(i <- 0 to 5){//vocabSize - 1){
-        println("" + resList(i)._1 + "," + resList(i)._2)
-      }
+    def transform(inputWord : String) : breeze.linalg.DenseVector[Float] = {
+      var wordVector = getWordVector(inputWord)
+      var resList = findSynonyms(wordVector)
+      resList = resList.sortBy(_._2).reverse
+      var w = resList(0)
+      w._3
     }
   }
 }
