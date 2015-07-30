@@ -135,13 +135,18 @@ object testWord2VecNew {
       println(key)
     }
 */
+/*
+   var m = DenseVector(1.0,2.0,2.0)
+   println(m.norm(2))
+   //println(norm(m,breeze.linalg.Axis._0,2))
 
-    var inputDataSeq = env.readTextFile("/media/nikste/moarspace/workspace-flink/datasets/text8").map(line => line.split(" "))
-    val w2v = Word2Vec()
+    */
+  var inputDataSeq = env.readTextFile("/media/nikste/moarspace/workspace-flink/datasets/text8_1mb").map(line => line.split(" "))
+   val w2v = Word2Vec()
 
 
-   w2v.fit(inputDataSeq)
-   println("end")
+  w2v.fit(inputDataSeq)
+  println("end")
 
-  }
+ }
 }
