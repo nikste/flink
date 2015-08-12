@@ -55,7 +55,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 	private final Configuration config;
 
 	/** The jar files that need to be attached to each job */
-	private final List<URL> jarFiles;
+	public final List<URL> jarFiles;
 	
 	/** The classpaths that need to be attached to each job */
 	private final List<URL> globalClasspaths;

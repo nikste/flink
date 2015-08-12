@@ -18,11 +18,12 @@
 
 package org.apache.flink.api.scala
 
-import java.io.{StringWriter, BufferedReader}
+import java.io.{PrintWriter, StringWriter, BufferedReader}
 
 import org.apache.flink.api.common.ExecutionMode
 
 import org.apache.flink.configuration.{ConfigConstants, Configuration}
+import org.apache.flink.runtime.StreamingMode
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster
 
 import scala.tools.nsc.Settings
@@ -36,12 +37,15 @@ object FlinkShell {
     val UNDEFINED, LOCAL, REMOTE = Value
   }
 
-  var bufferedReader: Option[BufferedReader] = None
+  var cluster: Option[LocalFlinkMiniCluster] = None;
+  // you can specify custom reader and writer for testing.
+  var readWriter: (Option[BufferedReader],Option[JPrintWriter]) = (None,None)
 
   def main(args: Array[String]) {
 
     // scopt, command line arguments
     case class Config(
+        streaming:StreamingMode = StreamingMode.BATCH_ONLY,
         port: Int = -1,
         host: String = "none",
         externalJars: Option[Array[String]] = None,
@@ -53,6 +57,8 @@ object FlinkShell {
       cmd("local") action {
         (_, c) => c.copy(host = "none", port = -1, flinkShellExecutionMode = ExecutionMode.LOCAL)
       } text("starts Flink scala shell with a local Flink cluster\n") children(
+        opt[Unit]('s',"streaming") action { (_, c) =>
+          c.copy(streaming = StreamingMode.STREAMING) } text("set this to use streaming api"),
         opt[(String)] ("addclasspath") abbr("a") valueName("<path/to/jar>") action {
           case (x, c) =>
             val xArray = x.split(":")
@@ -69,6 +75,8 @@ object FlinkShell {
         arg[Int]("<port>") action { (p, c) =>
           c.copy(port = p) }
           text("remote port as integer\n"),
+        opt[Unit]('s',"streaming") action { (_, c) =>
+          c.copy(streaming = StreamingMode.STREAMING) } text("set this to use streaming api"),
         opt[(String)]("addclasspath") abbr("a") valueName("<path/to/jar>") action {
           case (x, c) =>
             val xArray = x.split(":")
@@ -84,7 +92,8 @@ object FlinkShell {
         startShell(config.host,
           config.port,
           config.flinkShellExecutionMode,
-          config.externalJars)
+          config.externalJars,
+          config.streaming)
 
       case _ => System.out.println("Could not parse program arguments")
     }
@@ -95,8 +104,9 @@ object FlinkShell {
       userHost: String,
       userPort: Int,
       executionMode: ExecutionMode.Value,
-      externalJars: Option[Array[String]] = None): Unit ={
-    
+      externalJars: Option[Array[String]] = None,
+      streamingMode: StreamingMode): Unit ={
+
     System.out.println("Starting Flink Shell:")
 
     // either port or userhost not specified by user, create new minicluster
@@ -105,7 +115,7 @@ object FlinkShell {
         case ExecutionMode.LOCAL =>
           val config = new Configuration()
           config.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, 0)
-          val miniCluster = new LocalFlinkMiniCluster(config, false)
+          val miniCluster = new LocalFlinkMiniCluster(config, false, streamingMode)
           miniCluster.start()
           val port = miniCluster.getLeaderRPCPort
           System.out.println(s"\nStarting local Flink cluster (host: localhost, port: $port).\n")
@@ -131,16 +141,21 @@ object FlinkShell {
 
     try {
       // custom shell
-      repl = Some(
-        bufferedReader match {
+      repl =
+        readWriter match {
 
-          case Some(br) =>
-            val out = new StringWriter()
-            new FlinkILoop(host, port, externalJars, bufferedReader, new JPrintWriter(out))
+          case (Some(br),Some(jp)) =>
+            Some(new FlinkILoop(
+              host,
+              port,
+              streamingMode,
+              externalJars,
+              br,
+              jp))
 
-          case None =>
-            new FlinkILoop(host, port, externalJars)
-        })
+          case (None,None) =>
+            Some(new FlinkILoop(host, port, streamingMode, externalJars))
+        }
 
       val settings = new Settings()
 
@@ -151,7 +166,12 @@ object FlinkShell {
       repl.foreach(_.process(settings))
     } finally {
       repl.foreach(_.closeInterpreter())
-      cluster.foreach(_.stop())
+      cluster match {
+        case Some(c) =>
+          cluster.foreach(_.stop())
+        case None =>
+      }
+
     }
 
     System.out.println(" good bye ..")

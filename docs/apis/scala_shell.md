@@ -78,6 +78,7 @@ It is possible to add external classpaths to the Scala-shell. These will be sent
 
 Use the parameter `-a <path/to/jar.jar>` or `--addclasspath <path/to/jar.jar>` to load additional classes.
 
+Use the parameter `-s` or `--streaming` to start the Flink Shell in streaming mode.
 ~~~bash
-bin/start-scala-shell.sh [local | remote <host> <port>] --addclasspath <path/to/jar.jar>
+bin/start-scala-shell.sh [local | remote <host> <port>] --streaming --addclasspath <path/to/jar.jar>
 ~~~
