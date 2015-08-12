@@ -28,6 +28,7 @@ import org.junit.{AfterClass, BeforeClass, Test, Assert}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.tools.nsc.Settings
+import scala.tools.nsc.interpreter.JPrintWriter
 
 class ScalaShellITCase extends TestLogger {
 
@@ -231,10 +232,10 @@ class ScalaShellITCase extends TestLogger {
       case None =>
         throw new AssertionError("Cluster creation failed.")
     }
-
+    val jPrintWriter: JPrintWriter = new JPrintWriter(out)
     //start scala shell with initialized
     // buffered reader for testing
-    FlinkShell.bufferedReader = Some(in)
+    FlinkShell.readWriter = (Some(in),Some(jPrintWriter))
     FlinkShell.main(args)
     baos.flush()
 
@@ -298,13 +299,19 @@ object ScalaShellITCase {
 
     val repl = externalJars match {
       case Some(ej) => new FlinkILoop(
-        host, port,
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
         Option(Array(ej)),
-        in, new PrintWriter(out))
+        in,
+        new PrintWriter(out))
 
       case None => new FlinkILoop(
-        host, port,
-        in, new PrintWriter(out))
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
+        in,
+        new PrintWriter(out))
     }
 
     repl.settings = new Settings()

@@ -24,13 +24,19 @@ import org.apache.flink.util.TestLogger
 import org.junit.Test
 import org.junit.Assert
 
+import scala.tools.nsc.interpreter.JPrintWriter
+
 class ScalaShellLocalStartupITCase extends TestLogger {
 
   /**
    * tests flink shell with local setup through startup script in bin folder
    */
   @Test
-  def testLocalCluster: Unit = {
+  def testLocalClusterBatch: Unit = {
+    // Calling interpret sets the current thread's context classloader,
+    // but fails to reset it to its previous state when returning from that method.
+    // see: https://issues.scala-lang.org/browse/SI-8521
+    val cl = Thread.currentThread().getContextClassLoader
     val input: String =
       """
         |import org.apache.flink.api.common.functions.RichMapFunction
@@ -58,15 +64,17 @@ class ScalaShellLocalStartupITCase extends TestLogger {
         |
         |:q
       """.stripMargin
-      val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
-      val out: StringWriter = new StringWriter
-      val baos: ByteArrayOutputStream = new ByteArrayOutputStream
-      val oldOut: PrintStream = System.out
-      System.setOut(new PrintStream(baos))
-      val args: Array[String] = Array("local")
 
+    val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
+    val out: StringWriter = new StringWriter
+    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
+    val oldOut: PrintStream = System.out
+    System.setOut(new PrintStream(baos))
+    val args: Array[String] = Array("local")
+
+    val jPrintWriter: JPrintWriter = new JPrintWriter(out)
     //start flink scala shell
-    FlinkShell.bufferedReader = Some(in);
+    FlinkShell.readWriter = (Some(in),Some(jPrintWriter))
     FlinkShell.main(args)
 
     baos.flush()
@@ -81,5 +89,59 @@ class ScalaShellLocalStartupITCase extends TestLogger {
     Assert.assertFalse(output.contains("Error"))
     Assert.assertFalse(output.contains("ERROR"))
     Assert.assertFalse(output.contains("Exception"))
+
+    //reset classloader
+    Thread.currentThread().setContextClassLoader(cl)
+  }
+
+  /**
+    * tests flink shell with local setup through startup script in bin folder
+    */
+  @Test
+  def testLocalClusterStreaming: Unit = {
+    // Calling interpret sets the current thread's context classloader,
+    // but fails to reset it to its previous state when returning from that method.
+    // see: https://issues.scala-lang.org/browse/SI-8521
+    val cl = Thread.currentThread().getContextClassLoader
+    val input = """
+        val text = env.fromElements("To be, or not to be,--that is the question:--",
+        "Whether 'tis nobler in the mind to suffer",
+        "The slings and arrows of outrageous fortune",
+        "Or to take arms against a sea of troubles,")
+        val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.keyBy(0).sum(1)
+        val result = counts.print()
+        env.execute()
+        :q
+                """.stripMargin
+
+    val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
+    val out: StringWriter = new StringWriter
+    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
+    val oldOut: PrintStream = System.out
+    System.setOut(new PrintStream(baos))
+    val args: Array[String] = Array("local","-s")
+
+    val jPrintWriter: JPrintWriter = new JPrintWriter(out)
+    //start flink scala shell
+    FlinkShell.readWriter = (Some(in),Some(jPrintWriter))
+    FlinkShell.main(args)
+
+    baos.flush()
+    val output: String = baos.toString
+    System.setOut(oldOut)
+
+    println(output)
+
+    Assert.assertTrue(output.contains("(of,2)"))
+    Assert.assertTrue(output.contains("(whether,1)"))
+    Assert.assertTrue(output.contains("(to,4)"))
+    Assert.assertTrue(output.contains("(arrows,1)"))
+
+    Assert.assertFalse(output.contains("failed"))
+    Assert.assertFalse(output.contains("error"))
+    Assert.assertFalse(output.contains("Exception"))
+
+    // reset classloader
+    Thread.currentThread().setContextClassLoader(cl)
   }
 }
