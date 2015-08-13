@@ -40,7 +40,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 
 	private final String host;
 	private final int port;
-	private final List<File> jarFiles;
+	public List<File> jarFiles;
 
 	/**
 	 * Creates a new RemoteStreamEnvironment that points to the master
@@ -103,7 +103,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 	 *            jobGraph to execute
 	 * @return The result of the job execution, containing elapsed time and accumulators.
 	 */
-	private JobExecutionResult executeRemotely(JobGraph jobGraph) throws ProgramInvocationException {
+	public JobExecutionResult executeRemotely(JobGraph jobGraph) throws ProgramInvocationException {
 		if (LOG.isInfoEnabled()) {
 			LOG.info("Running remotely at {}:{}", host, port);
 		}
