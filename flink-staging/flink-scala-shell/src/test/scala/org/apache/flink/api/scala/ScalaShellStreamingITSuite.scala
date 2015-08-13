@@ -22,33 +22,19 @@ import java.io._
 import java.util.concurrent.TimeUnit
 
 import org.apache.flink.runtime.StreamingMode
-import org.apache.flink.test.util.{ForkableFlinkMiniCluster, TestBaseUtils, TestEnvironment}
-import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import org.apache.flink.test.util.{TestEnvironment, TestBaseUtils, ForkableFlinkMiniCluster, FlinkTestBase}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfter, FunSuite, Matchers}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.tools.nsc.Settings
 
-@RunWith(classOf[JUnitRunner])
-class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
+class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
-  test("Prevent re-creation of environment") {
 
-    val input: String =
-      """
-        val env = ExecutionEnvironment.getExecutionEnvironment
-      """.stripMargin
-
-    val output: String = processInShell(input)
-
-    output should include("UnsupportedOperationException: Execution Environment is already " +
-      "defined for this shell")
-  }
-
+  /*
   test("Iteration test with iterative Pi example") {
 
-    val input: String =
+    val input : String =
       """
         val initial = env.fromElements(0)
 
@@ -64,7 +50,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
         result.collect()
       """.stripMargin
 
-    val output: String = processInShell(input)
+    val output : String = processInShell(input)
 
     output should not include "failed"
     output should not include "error"
@@ -72,8 +58,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
   }
 
   test("WordCount in Shell") {
-    val input =
-      """
+    val input = """
         val text = env.fromElements("To be, or not to be,--that is the question:--",
         "Whether 'tis nobler in the mind to suffer",
         "The slings and arrows of outrageous fortune",
@@ -81,7 +66,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
         val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.groupBy(0).sum(1)
         val result = counts.print()
-      """.stripMargin
+                """.stripMargin
 
     val output = processInShell(input)
 
@@ -89,7 +74,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     output should not include "error"
     output should not include "Exception"
 
-    // some of the words that should be included
+    //    some of the words that should be included
     output should include("(a,1)")
     output should include("(whether,1)")
     output should include("(to,4)")
@@ -97,14 +82,14 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
   }
 
   test("Sum 1..10, should be 55") {
-    val input =
+    val input : String =
       """
         val input: DataSet[Int] = env.fromElements(0,1,2,3,4,5,6,7,8,9,10)
         val reduced = input.reduce(_+_)
         reduced.print
       """.stripMargin
 
-    val output = processInShell(input)
+    val output : String = processInShell(input)
 
     output should not include "failed"
     output should not include "error"
@@ -114,7 +99,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
   }
 
   test("WordCount in Shell with custom case class") {
-    val input =
+    val input : String =
       """
       case class WC(word: String, count: Int)
 
@@ -128,7 +113,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
       reduced.print()
       """.stripMargin
 
-    val output = processInShell(input)
+    val output : String = processInShell(input)
 
     output should not include "failed"
     output should not include "error"
@@ -138,36 +123,37 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     output should include("WC(world,10)")
   }
 
-  test("Submit external library") {
-    val input =
+*/
+  test("Submit external library with streaming") {
+
+    val input : String =
       """
         import org.apache.flink.ml.math._
         val denseVectors = env.fromElements(DenseVector(1.0, 2.0, 3.0))
         denseVectors.print()
-      """.stripMargin
+        env.execute("hello")
+      """
 
     // find jar file that contains the ml code
-    var externalJar = ""
-    val folder = new File("../flink-ml/target/")
-    val listOfFiles = folder.listFiles()
-
-    for (i <- listOfFiles.indices) {
-      val filename: String = listOfFiles(i).getName
-      if (!filename.contains("test") && !filename.contains("original") && filename.contains(
-        ".jar")) {
+    var externalJar : String = ""
+    var folder : File = new File("../flink-ml/target/");
+    var listOfFiles : Array[File] = folder.listFiles();
+    for(i <- 0 to listOfFiles.length - 1){
+      var filename : String = listOfFiles(i).getName();
+      if(!filename.contains("test") && !filename.contains("original") && filename.contains(".jar")){
         externalJar = listOfFiles(i).getAbsolutePath
       }
     }
 
     assert(externalJar != "")
 
-    val output: String = processInShell(input, Option(externalJar))
+    val output : String = processInShell(input,Option(externalJar))
 
     output should not include "failed"
     output should not include "error"
     output should not include "Exception"
 
-    output should include("\nDenseVector(1.0, 2.0, 3.0)")
+    output should include( "\nDenseVector(1.0, 2.0, 3.0)")
   }
 
   /**
@@ -175,7 +161,8 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
    * @param input commands to be processed in the shell
    * @return output of shell
    */
-  def processInShell(input: String, externalJars: Option[String] = None): String = {
+  def processInShell(input : String, externalJars : Option[String] = None): String ={
+
     val in = new BufferedReader(new StringReader(input + "\n"))
     val out = new StringWriter()
     val baos = new ByteArrayOutputStream()
@@ -186,19 +173,21 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     // new local cluster
     val host = "localhost"
     val port = cluster match {
-      case Some(c) => c.getLeaderRPCPort
+      case Some(c) => c.getJobManagerRPCPort
       case _ => throw new RuntimeException("Test cluster not initialized.")
     }
 
-    val repl = externalJars match {
-      case Some(ej) => new FlinkILoop(
-        host, port, StreamingMode.BATCH_ONLY,
+    var repl : FlinkILoop= null
+
+    externalJars match {
+      case Some(ej) => repl = new FlinkILoop(
+        host, port, StreamingMode.STREAMING,
         Option(Array(ej)),
         in, new PrintWriter(out))
 
-      case None => new FlinkILoop(
-        host,port, StreamingMode.BATCH_ONLY,
-        in, new PrintWriter(out))
+      case None => repl = new FlinkILoop(
+        host,port, StreamingMode.STREAMING,
+        in,new PrintWriter(out))
     }
 
     repl.settings = new Settings()
@@ -228,18 +217,15 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
   val parallelism = 4
 
   override def beforeAll(): Unit = {
-    val cl = TestBaseUtils.startCluster(
-      1,
-      parallelism,
-      StreamingMode.BATCH_ONLY,
-      false,
-      false,
-      false)
+    //TODO: CHECK STREAMING MODE TESTS HERE!!
+    val cl = TestBaseUtils.startCluster(1, parallelism, StreamingMode.STREAMING, false, false)
+    val clusterEnvironment = new TestEnvironment(cl, parallelism)
+    clusterEnvironment.setAsContext()
 
     cluster = Some(cl)
   }
 
   override def afterAll(): Unit = {
-    cluster.foreach(c => TestBaseUtils.stopCluster(c, new FiniteDuration(1000, TimeUnit.SECONDS)))
+    cluster.map(c => TestBaseUtils.stopCluster(c, new FiniteDuration(1000, TimeUnit.SECONDS)))
   }
 }
