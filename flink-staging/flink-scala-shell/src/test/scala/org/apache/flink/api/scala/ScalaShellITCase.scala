@@ -298,12 +298,12 @@ object ScalaShellITCase {
 
     val repl = externalJars match {
       case Some(ej) => new FlinkILoop(
-        host, port,
+        host, port, StreamingMode.BATCH_ONLY,
         Option(Array(ej)),
         in, new PrintWriter(out))
 
       case None => new FlinkILoop(
-        host, port,
+        host,port, StreamingMode.BATCH_ONLY,
         in, new PrintWriter(out))
     }
 

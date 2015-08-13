@@ -20,54 +20,118 @@ package org.apache.flink.api.scala
 
 import java.io.{BufferedReader, File, FileOutputStream}
 
-import org.apache.flink.api.java.{JarHelper, ScalaShellRemoteEnvironment}
+import org.apache.flink.runtime.StreamingMode
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+
+import org.apache.flink.api.java._
 import org.apache.flink.util.AbstractID
 
 import scala.tools.nsc.interpreter._
 
 
 class FlinkILoop(
-    val host: String,
-    val port: Int,
-    val externalJars: Option[Array[String]],
-    in0: Option[BufferedReader],
-    out0: JPrintWriter)
+    val host : String,
+    val port : Int,
+    val streaming : StreamingMode,
+    val externalJars : Option[Array[String]],
+    in0 : Option[BufferedReader],
+    out0 : JPrintWriter)
   extends ILoopCompat(in0, out0) {
 
   def this(host: String,
            port: Int,
+           streaming: StreamingMode,
            externalJars: Option[Array[String]],
-           in0: BufferedReader, 
+           in0: BufferedReader,
            out: JPrintWriter){
-    this(host: String, port: Int, externalJars, Some(in0), out)
+    this(
+      host,
+      port,
+      streaming,
+      externalJars,
+      Some(in0),
+      out)
   }
 
-  def this(host: String, port: Int, externalJars: Option[Array[String]]){
-    this(host: String, port: Int, externalJars, None, new JPrintWriter(Console.out, true))
+  def this(host: String,
+           port: Int,
+           streaming : StreamingMode,
+           externalJars : Option[Array[String]]){
+    this(host,
+      port,
+      streaming,
+      externalJars,
+      None,
+      new JPrintWriter(Console.out, true))
   }
   
-  def this(host: String, port: Int, in0: BufferedReader, out: JPrintWriter){
-    this(host: String, port: Int, None, in0: BufferedReader, out: JPrintWriter)
+  def this(host : String,
+           port : Int,
+           streaming : StreamingMode,
+           in0 : BufferedReader,
+           out : JPrintWriter){
+    this(host,
+      port,
+      streaming,
+      None,
+      in0,
+      out)
   }
 
   // remote environment
-  private val remoteEnv: ScalaShellRemoteEnvironment = {
+  private var remoteEnv  = {
+    if(streaming == StreamingMode.STREAMING) {
+    // allow creation of environments
+    ScalaShellRemoteStreamEnvironment.resetContextEnvironments()
+    
+    // create our environment that submits against the cluster (local or remote)
+    val remoteEnv = new ScalaShellRemoteStreamEnvironment(host, port, this)
+
+    // prevent further instantiation of environments
+    ScalaShellRemoteStreamEnvironment.disableAllContextAndOtherEnvironments()
+    
+    remoteEnv
+
+    
+    }else{
+    
     // allow creation of environments
     ScalaShellRemoteEnvironment.resetContextEnvironments()
     
     // create our environment that submits against the cluster (local or remote)
     val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
-    
+
     // prevent further instantiation of environments
     ScalaShellRemoteEnvironment.disableAllContextAndOtherEnvironments()
     
     remoteEnv
+
+    }
   }
 
   // local environment
-  val scalaEnv: ExecutionEnvironment = {
-    val scalaEnv = new ExecutionEnvironment(remoteEnv)
-    scalaEnv
+  val scalaEnv = {
+    remoteEnv match{
+      case s : ScalaShellRemoteStreamEnvironment =>
+        println("DEGUB: initializing scalaEnv as STREAMING")
+        new StreamExecutionEnvironment(s)
+      case b : ScalaShellRemoteEnvironment =>
+        println("DEGUB: initializing scalaEnv as BATCH_ONLY")
+        new ExecutionEnvironment(b)
+    }
+    /*
+    if(streaming == StreamingMode.STREAMING) {
+      new StreamExecutionEnvironment(remoteEnv : ScalaShellRemoteStreamEnvironment)
+    }
+    else{
+        new ExecutionEnvironment(remoteEnv : ScalaShellRemoteEnvironment)
+      }*/
+    /*remoteEnv match{
+      case _ : ScalaShellRemoteEnvironment =>
+        new ExecutionEnvironment(_ : ScalaShellRemoteEnvironment)
+      case _ : ScalaShellRemoteStreamEnvironment =>
+        new StreamExecutionEnvironment(_ : ScalaShellRemoteStreamEnvironment)
+    }*/
   }
 
   /**
@@ -82,6 +146,8 @@ class FlinkILoop(
     if (!tmpDir.exists) {
       tmpDir.mkdir
     }
+
+    println("DEGUB: creating temporary Folder:" + tmpDir)
     tmpDir
   }
 
@@ -170,7 +236,7 @@ class FlinkILoop(
 
     val jh: JarHelper = new JarHelper
     jh.jarDir(compiledClasses, jarFilePath)
-
+    println("DEGUB: writing files to disk:" + jarFilePath)
     jarFilePath
   }
 
