@@ -138,7 +138,6 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     for(i <- 0 to listOfFiles.length - 1){
       var filename : String = listOfFiles(i).getName();
       if(!filename.contains("test") && !filename.contains("original") && filename.contains(".jar")){
-        println("ive found file:" + listOfFiles(i).getAbsolutePath)
         externalJar = listOfFiles(i).getAbsolutePath
       }
     }
@@ -179,12 +178,12 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     
     externalJars match {
       case Some(ej) => repl = new FlinkILoop(
-        host, port,  
+        host, port, StreamingMode.BATCH_ONLY,
         Option(Array(ej)), 
         in, new PrintWriter(out))
         
       case None => repl = new FlinkILoop(
-        host,port,
+        host,port, StreamingMode.BATCH_ONLY,
         in,new PrintWriter(out))
     }
     

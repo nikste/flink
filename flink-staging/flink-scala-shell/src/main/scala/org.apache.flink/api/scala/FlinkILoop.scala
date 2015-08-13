@@ -20,47 +20,98 @@ package org.apache.flink.api.scala
 
 import java.io.{BufferedReader, File, FileOutputStream}
 
+import org.apache.flink.runtime.StreamingMode
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+
 import scala.tools.nsc.interpreter._
 
-import org.apache.flink.api.java.{JarHelper, ScalaShellRemoteEnvironment}
+import org.apache.flink.api.java._
 import org.apache.flink.util.AbstractID
 
 
 class FlinkILoop(
-    val host: String,
-    val port: Int,
-    val externalJars: Option[Array[String]],
-    in0: Option[BufferedReader],
-    out0: JPrintWriter)
+    val host : String,
+    val port : Int,
+    val streaming : StreamingMode,
+    val externalJars : Option[Array[String]],
+    in0 : Option[BufferedReader],
+    out0 : JPrintWriter)
   extends ILoop(in0, out0) {
+
   
-  
-  
-  def this(host:String, 
-           port:Int, 
+  def this(host : String,
+           port : Int,
+           streaming : StreamingMode,
            externalJars : Option[Array[String]], 
-           in0: BufferedReader, 
-           out: JPrintWriter){
-    this(host:String, port:Int, externalJars, Some(in0), out)
+           in0 : BufferedReader,
+           out : JPrintWriter){
+    this(
+      host,
+      port,
+      streaming,
+      externalJars,
+      Some(in0),
+      out)
   }
 
-  def this(host:String, port:Int, externalJars : Option[Array[String]]){
-    this(host:String,port: Int, externalJars , None, new JPrintWriter(Console.out, true))
+  def this(host : String,
+           port : Int,
+           streaming : StreamingMode,
+           externalJars : Option[Array[String]]){
+    this(host,
+      port,
+      streaming,
+      externalJars,
+      None,
+      new JPrintWriter(Console.out, true))
   }
   
-  def this(host: String, port: Int, in0: BufferedReader, out: JPrintWriter){
-    this(host: String, port: Int, None, in0: BufferedReader, out: JPrintWriter)
+  def this(host : String,
+           port : Int,
+           streaming : StreamingMode,
+           in0 : BufferedReader,
+           out : JPrintWriter){
+    this(host,
+      port,
+      streaming,
+      None,
+      in0,
+      out)
   }
   // remote environment
-  private val remoteEnv: ScalaShellRemoteEnvironment = {
-    val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
-    remoteEnv
+  private var remoteEnv  = {
+    if(streaming == StreamingMode.STREAMING) {
+      println("DEGUB: initializing remoteEnv as STREAMING")
+       new ScalaShellRemoteStreamEnvironment(host,port,this)
+    }else{
+      println("DEGUB: initializing remoteEnv as BATCH_ONLY")
+      new ScalaShellRemoteEnvironment(host, port, this)
+    }
   }
 
   // local environment
-  val scalaEnv: ExecutionEnvironment = {
-    val scalaEnv = new ExecutionEnvironment(remoteEnv)
-    scalaEnv
+  val scalaEnv = {
+    remoteEnv match{
+      case s : ScalaShellRemoteStreamEnvironment =>
+        println("DEGUB: initializing scalaEnv as STREAMING")
+        new StreamExecutionEnvironment(s)
+      case b : ScalaShellRemoteEnvironment =>
+        println("DEGUB: initializing scalaEnv as BATCH_ONLY")
+        new ExecutionEnvironment(b)
+    }
+    /*
+    if(streaming == StreamingMode.STREAMING) {
+      new StreamExecutionEnvironment(remoteEnv : ScalaShellRemoteStreamEnvironment)
+    }
+    else{
+        new ExecutionEnvironment(remoteEnv : ScalaShellRemoteEnvironment)
+      }*/
+    /*remoteEnv match{
+      case _ : ScalaShellRemoteEnvironment =>
+        new ExecutionEnvironment(_ : ScalaShellRemoteEnvironment)
+      case _ : ScalaShellRemoteStreamEnvironment =>
+        new StreamExecutionEnvironment(_ : ScalaShellRemoteStreamEnvironment)
+    }*/
   }
 
   addThunk {
@@ -86,6 +137,8 @@ class FlinkILoop(
     if (!tmpDir.exists) {
       tmpDir.mkdir
     }
+
+    println("DEGUB: creating temporary Folder:" + tmpDir)
     tmpDir
   }
 
@@ -142,7 +195,7 @@ class FlinkILoop(
 
     val jh: JarHelper = new JarHelper
     jh.jarDir(compiledClasses, jarFilePath)
-
+    println("DEGUB: writing files to disk:" + jarFilePath)
     jarFilePath
   }
 
