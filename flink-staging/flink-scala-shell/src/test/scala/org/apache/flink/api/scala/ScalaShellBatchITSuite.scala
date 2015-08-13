@@ -30,8 +30,7 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import scala.concurrent.duration.FiniteDuration
 import scala.tools.nsc.Settings
 
-@RunWith(classOf[JUnitRunner])
-class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
+class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
   test("Iteration test with iterative Pi example") {
 
