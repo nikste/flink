@@ -142,7 +142,6 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
       val filename: String = listOfFiles(i).getName
       if (!filename.contains("test") && !filename.contains("original") && filename.contains(
         ".jar")) {
-        println("ive found file:" + listOfFiles(i).getAbsolutePath)
         externalJar = listOfFiles(i).getAbsolutePath
       }
     }
@@ -180,12 +179,12 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val repl = externalJars match {
       case Some(ej) => new FlinkILoop(
-        host, port,
+        host, port, StreamingMode.BATCH_ONLY,
         Option(Array(ej)),
         in, new PrintWriter(out))
 
       case None => new FlinkILoop(
-        host, port,
+        host,port, StreamingMode.BATCH_ONLY,
         in, new PrintWriter(out))
     }
 
