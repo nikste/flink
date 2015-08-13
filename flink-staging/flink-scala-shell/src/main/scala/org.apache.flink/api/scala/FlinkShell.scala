@@ -19,6 +19,8 @@
 package org.apache.flink.api.scala
 
 
+import org.apache.flink.runtime.StreamingMode
+
 import scala.tools.nsc.Settings
 
 import org.apache.flink.configuration.Configuration
@@ -31,6 +33,7 @@ object FlinkShell {
 
     // scopt, command line arguments
     case class Config(
+        streaming:StreamingMode = StreamingMode.BATCH_ONLY,
         port: Int = -1,
         host: String = "none",
         externalJars: Option[Array[String]] = None)
@@ -46,7 +49,8 @@ object FlinkShell {
         case (x, c) =>
           c.copy (host = x)
       }  text("host specifies host name of running JobManager")
-
+      opt[Unit]('s',"streaming") action { (_, c) =>
+        c.copy(streaming = StreamingMode.STREAMING) } text("set this to use streaming api")
       opt[(String)] ('a',"addclasspath") action {
         case (x,c) =>
           val xArray = x.split(":")
@@ -60,7 +64,7 @@ object FlinkShell {
     // parse arguments
     parser.parse (args, Config () ) match {
       case Some(config) =>
-        startShell(config.host,config.port,config.externalJars)
+        startShell(config.host,config.port,config.externalJars,config.streaming)
 
       case _ => println("Could not parse program arguments")
     }
@@ -70,16 +74,26 @@ object FlinkShell {
   def startShell(
       userHost : String, 
       userPort : Int, 
-      externalJars : Option[Array[String]] = None): Unit ={
+      externalJars : Option[Array[String]] = None,
+      streaming : StreamingMode): Unit ={
     
     println("Starting Flink Shell:")
 
     var cluster: LocalFlinkMiniCluster = null
 
+    var streamingMode = StreamingMode.BATCH_ONLY
+    if(streaming == StreamingMode.STREAMING){
+      streamingMode = StreamingMode.STREAMING
+      println("streamingMode set to STREAMING")
+    }else{
+      println("streamingMode set to BATCH_ONLY")
+      streamingMode = StreamingMode.BATCH_ONLY
+    }
+
     // either port or userhost not specified by user, create new minicluster
     val (host,port) = if (userHost == "none" || userPort == -1 ) {
       println("Creating new local server")
-      cluster = new LocalFlinkMiniCluster(new Configuration, false)
+      cluster = new LocalFlinkMiniCluster(new Configuration, false, streamingMode)
       cluster.start()
       ("localhost",cluster.getLeaderRPCPort)
     } else {
@@ -87,8 +101,9 @@ object FlinkShell {
       (userHost, userPort)
     }
     
-    // custom shell
-    val repl = new FlinkILoop(host, port, externalJars) //new MyILoop();
+
+    // custom Shell
+    val repl = new FlinkILoop(host, port, streamingMode, externalJars) //new MyILoop();
 
     repl.settings = new Settings()
 
