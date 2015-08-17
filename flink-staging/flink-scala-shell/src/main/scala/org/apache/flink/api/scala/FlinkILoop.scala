@@ -93,10 +93,8 @@ class FlinkILoop(
   val scalaEnv = {
     remoteEnv match{
       case s : ScalaShellRemoteStreamEnvironment =>
-        println("DEGUB: initializing scalaEnv as STREAMING")
         new StreamExecutionEnvironment(s)
       case b : ScalaShellRemoteEnvironment =>
-        println("DEGUB: initializing scalaEnv as BATCH_ONLY")
         new ExecutionEnvironment(b)
     }
   }
@@ -125,7 +123,6 @@ class FlinkILoop(
       tmpDir.mkdir
     }
 
-    println("DEGUB: creating temporary Folder:" + tmpDir)
     tmpDir
   }
 
@@ -182,7 +179,6 @@ class FlinkILoop(
 
     val jh: JarHelper = new JarHelper
     jh.jarDir(compiledClasses, jarFilePath)
-    println("DEGUB: writing files to disk:" + jarFilePath)
     jarFilePath
   }
 
