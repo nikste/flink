@@ -98,19 +98,6 @@ class FlinkILoop(
         println("DEGUB: initializing scalaEnv as BATCH_ONLY")
         new ExecutionEnvironment(b)
     }
-    /*
-    if(streaming == StreamingMode.STREAMING) {
-      new StreamExecutionEnvironment(remoteEnv : ScalaShellRemoteStreamEnvironment)
-    }
-    else{
-        new ExecutionEnvironment(remoteEnv : ScalaShellRemoteEnvironment)
-      }*/
-    /*remoteEnv match{
-      case _ : ScalaShellRemoteEnvironment =>
-        new ExecutionEnvironment(_ : ScalaShellRemoteEnvironment)
-      case _ : ScalaShellRemoteStreamEnvironment =>
-        new StreamExecutionEnvironment(_ : ScalaShellRemoteStreamEnvironment)
-    }*/
   }
 
   addThunk {
