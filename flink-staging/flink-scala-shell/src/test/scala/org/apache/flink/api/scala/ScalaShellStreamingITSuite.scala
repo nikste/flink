@@ -30,34 +30,9 @@ import scala.tools.nsc.Settings
 
 class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
+  
 
-  /*
-  test("Iteration test with iterative Pi example") {
-
-    val input : String =
-      """
-        val initial = env.fromElements(0)
-
-        val count = initial.iterate(10000) { iterationInput: DataSet[Int] =>
-          val result = iterationInput.map { i =>
-            val x = Math.random()
-            val y = Math.random()
-            i + (if (x * x + y * y < 1) 1 else 0)
-          }
-          result
-        }
-        val result = count map { c => c / 10000.0 * 4 }
-        result.collect()
-      """.stripMargin
-
-    val output : String = processInShell(input)
-
-    output should not include "failed"
-    output should not include "error"
-    output should not include "Exception"
-  }
-
-  test("WordCount in Shell") {
+  test("WordCount in Shell Streaming") {
     val input = """
         val text = env.fromElements("To be, or not to be,--that is the question:--",
         "Whether 'tis nobler in the mind to suffer",
@@ -66,6 +41,7 @@ class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAf
 
         val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.groupBy(0).sum(1)
         val result = counts.print()
+        env.execute()
                 """.stripMargin
 
     val output = processInShell(input)
@@ -81,49 +57,6 @@ class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAf
     output should include("(arrows,1)")
   }
 
-  test("Sum 1..10, should be 55") {
-    val input : String =
-      """
-        val input: DataSet[Int] = env.fromElements(0,1,2,3,4,5,6,7,8,9,10)
-        val reduced = input.reduce(_+_)
-        reduced.print
-      """.stripMargin
-
-    val output : String = processInShell(input)
-
-    output should not include "failed"
-    output should not include "error"
-    output should not include "Exception"
-
-    output should include("55")
-  }
-
-  test("WordCount in Shell with custom case class") {
-    val input : String =
-      """
-      case class WC(word: String, count: Int)
-
-      val wordCounts = env.fromElements(
-        new WC("hello", 1),
-        new WC("world", 2),
-        new WC("world", 8))
-
-      val reduced = wordCounts.groupBy(0).sum(1)
-
-      reduced.print()
-      """.stripMargin
-
-    val output : String = processInShell(input)
-
-    output should not include "failed"
-    output should not include "error"
-    output should not include "Exception"
-
-    output should include("WC(hello,1)")
-    output should include("WC(world,10)")
-  }
-
-*/
   test("Submit external library with streaming") {
 
     val input : String =
