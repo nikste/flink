@@ -18,6 +18,8 @@
 
 package org.apache.flink.streaming.api.scala
 
+import org.apache.flink.core.fs.FileSystem.WriteMode
+
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 

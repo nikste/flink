@@ -136,6 +136,11 @@ class FlinkILoop(
   }
 
 
+  def resetInterpreter(): Unit = {
+    intp.virtualDirectory.clear()
+    addThunk()
+  }
+
   /**
    * Packages the compiled classes of the current shell session into a Jar file for execution
    * on a Flink cluster.
