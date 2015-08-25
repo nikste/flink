@@ -22,7 +22,6 @@ import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.scala.FlinkILoop;
 import org.apache.flink.client.program.JobWithJars;
 import org.apache.flink.client.program.ProgramInvocationException;
-import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.streaming.api.environment.RemoteStreamEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,8 +64,9 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 	@Override
 	public JobExecutionResult execute() throws ProgramInvocationException {
 		prepareJars();
-		JobGraph jobGraph = streamGraph.getJobGraph();
-		return executeRemotely(jobGraph);
+		return(super.execute());
+		/*JobGraph jobGraph = streamGraph.getJobGraph();
+		return executeRemotely(jobGraph);*/
 	}
 
 	/**
@@ -108,8 +108,9 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 	@Override
 	public JobExecutionResult execute(String jobName) throws ProgramInvocationException {
 		prepareJars();
-		JobGraph jobGraph = streamGraph.getJobGraph(jobName);
-		return executeRemotely(jobGraph);
+		return(super.execute(jobName));
+		/*JobGraph jobGraph = streamGraph.getJobGraph(jobName);
+		return executeRemotely(jobGraph);*/
 	}
 
 }
