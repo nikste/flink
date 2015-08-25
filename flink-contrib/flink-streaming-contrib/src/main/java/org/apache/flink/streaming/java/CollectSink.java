@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.contrib.streaming;
+package org.apache.flink.streaming.java;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
