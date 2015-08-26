@@ -15,19 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+package org.apache.flink.contrib.tweetinputformat.model.tweet.entities;
 
 /**
- * Represents hashtags which have been parsed out of the
+ * An array of financial symbols starting with the dollar sign extracted from the
  * {@link package org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} text.
  */
 
-public class HashTags {
-
-	private long[] indices = new long[2];
+public class Symbol {
 
 	private String text = "";
 
+	private long[] indices;
+
+	public Symbol() {
+		this.text = "";
+		this.setIndices(new long[]{0L, 0L});
+
+	}
+
+	public String getText() {
+		return text;
+	}
+
+	public void setText(String text) {
+		this.text = text;
+	}
 
 	public long[] getIndices() {
 		return indices;
@@ -36,23 +49,4 @@ public class HashTags {
 	public void setIndices(long[] indices) {
 		this.indices = indices;
 	}
-
-	public void setIndices(long start, long end) {
-		this.indices[0] = start;
-		this.indices[1] = end;
-
-	}
-
-	public String getText() {
-		return text;
-	}
-
-	public void setText(String text, boolean hashExist) {
-		if (hashExist) {
-			this.text = text.substring((int) indices[0] + 1);
-		} else {
-			this.text = text;
-		}
-	}
-
 }

@@ -15,50 +15,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+package org.apache.flink.contrib.tweetinputformat.model.tweet.entities;
 
 /**
- * An object showing available sizes for the media file.
+ * Represents hashtags which have been parsed out of the
+ * {@link package org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} text.
  */
-public class Size {
 
-	private long w;
+public class HashTags {
 
-	private long h;
+	private long[] indices = new long[2];
 
-	private String resize = "";
+	private String text = "";
 
 
-	public Size(long width, long height, String resize) {
+	public long[] getIndices() {
+		return indices;
+	}
 
-		this.w = width;
-		this.h = height;
-		this.resize = resize;
+	public void setIndices(long[] indices) {
+		this.indices = indices;
+	}
+
+	public void setIndices(long start, long end) {
+		this.indices[0] = start;
+		this.indices[1] = end;
 
 	}
 
-
-	public long getWidth() {
-		return w;
+	public String getText() {
+		return text;
 	}
 
-	public void setWidth(long width) {
-		this.w = width;
+	public void setText(String text, boolean hashExist) {
+		if (hashExist) {
+			this.text = text.substring((int) indices[0] + 1);
+		} else {
+			this.text = text;
+		}
 	}
 
-	public long getHeight() {
-		return h;
-	}
-
-	public void setHeight(long height) {
-		this.h = height;
-	}
-
-	public String getResize() {
-		return resize;
-	}
-
-	public void setResize(String resize) {
-		this.resize = resize;
-	}
 }

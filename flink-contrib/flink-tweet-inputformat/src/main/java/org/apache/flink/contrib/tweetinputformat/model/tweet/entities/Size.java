@@ -15,41 +15,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet;
+package org.apache.flink.contrib.tweetinputformat.model.tweet.entities;
 
 /**
- * Details the {@link Tweet} ID of the user’s own retweet (if
- * existent) of this {@link Tweet}.
+ * An object showing available sizes for the media file.
  */
-public class CurrentUserRetweet {
+public class Size {
 
-	private long id;
+	private long w;
 
-	private String id_str = "";
+	private long h;
 
-	public CurrentUserRetweet() {
-		reset();
+	private String resize = "";
+
+
+	public Size(long width, long height, String resize) {
+
+		this.w = width;
+		this.h = height;
+		this.resize = resize;
+
 	}
 
-	public void reset() {
-		id = 0L;
-		id_str = "";
 
+	public long getWidth() {
+		return w;
 	}
 
-	public long getId() {
-		return id;
+	public void setWidth(long width) {
+		this.w = width;
 	}
 
-	public void setId(long id) {
-		this.id = id;
+	public long getHeight() {
+		return h;
 	}
 
-	public String getId_str() {
-		return id_str;
+	public void setHeight(long height) {
+		this.h = height;
 	}
 
-	public void setId_str() {
-		this.id_str = Long.toString(id);
+	public String getResize() {
+		return resize;
+	}
+
+	public void setResize(String resize) {
+		this.resize = resize;
 	}
 }

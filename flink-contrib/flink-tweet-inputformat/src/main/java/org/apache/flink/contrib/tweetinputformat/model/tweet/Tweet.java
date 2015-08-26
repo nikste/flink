@@ -15,11 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet;
+package org.apache.flink.contrib.tweetinputformat.model.tweet;
 
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.User.Users;
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.places.Places;
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities.Entities;
+import org.apache.flink.contrib.tweetinputformat.model.User.Users;
+import org.apache.flink.contrib.tweetinputformat.model.places.Places;
+import org.apache.flink.contrib.tweetinputformat.model.tweet.entities.Entities;
 
 import java.util.ArrayList;
 import java.util.List;
