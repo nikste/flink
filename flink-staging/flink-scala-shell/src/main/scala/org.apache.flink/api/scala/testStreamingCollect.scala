@@ -88,7 +88,11 @@ object testStreamingCollect {
 
     val text = env.socketTextStream("localhost", 9999)
 
-    val counts = text.flatMap { _.toLowerCase.split("\\W+").filter{ _.nonEmpty } }.map { (_, 1) }.groupBy(0).sum(1)
+    val counts = text.flatMap""" +
+        """{ _.toLowerCase.split("\\W+").""" +
+        """filter{ _.nonEmpty } }.""" +
+        """map { (_, 1) }.groupBy(0).""" +
+        """sum(1)\n
 
     import org.apache.flink.contrib.streaming.scala.DataStreamUtils._
     var collected = collect[(String,Int)](counts)

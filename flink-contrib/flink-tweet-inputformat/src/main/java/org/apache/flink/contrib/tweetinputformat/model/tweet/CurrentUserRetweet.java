@@ -15,27 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+package org.apache.flink.contrib.tweetinputformat.model.tweet;
 
 /**
- * Represents other Twitter users mentioned in the text of the
- * {@link package org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet}.
+ * Details the {@link Tweet} ID of the user’s own retweet (if
+ * existent) of this {@link Tweet}.
  */
-public class UserMention {
+public class CurrentUserRetweet {
 
 	private long id;
 
 	private String id_str = "";
 
-	private String screen_name = "";
+	public CurrentUserRetweet() {
+		reset();
+	}
 
-	private String name = "";
+	public void reset() {
+		id = 0L;
+		id_str = "";
 
-	private long[] indices;
-
-	public UserMention() {
-
-		this.setIndices(new long[]{0L, 0L});
 	}
 
 	public long getId() {
@@ -52,29 +51,5 @@ public class UserMention {
 
 	public void setId_str() {
 		this.id_str = Long.toString(id);
-	}
-
-	public String getScreen_name() {
-		return screen_name;
-	}
-
-	public void setScreen_name(String screen_name) {
-		this.screen_name = screen_name;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	public long[] getIndices() {
-		return indices;
-	}
-
-	public void setIndices(long[] indices) {
-		this.indices = indices;
 	}
 }
