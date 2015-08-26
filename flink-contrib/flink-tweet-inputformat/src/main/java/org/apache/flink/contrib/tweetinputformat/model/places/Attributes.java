@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.places;
+package org.apache.flink.contrib.tweetinputformat.model.places;
 
 public class Attributes {
 

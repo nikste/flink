@@ -15,31 +15,59 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+package org.apache.flink.contrib.tweetinputformat.model.tweet.entities;
 
 /**
- * An array of financial symbols starting with the dollar sign extracted from the
- * {@link package org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} text.
+ * Represents other Twitter users mentioned in the text of the
+ * {@link package org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet}.
  */
+public class UserMention {
 
-public class Symbol {
+	private long id;
 
-	private String text = "";
+	private String id_str = "";
+
+	private String screen_name = "";
+
+	private String name = "";
 
 	private long[] indices;
 
-	public Symbol() {
-		this.text = "";
+	public UserMention() {
+
 		this.setIndices(new long[]{0L, 0L});
-
 	}
 
-	public String getText() {
-		return text;
+	public long getId() {
+		return id;
 	}
 
-	public void setText(String text) {
-		this.text = text;
+	public void setId(long id) {
+		this.id = id;
+	}
+
+	public String getId_str() {
+		return id_str;
+	}
+
+	public void setId_str() {
+		this.id_str = Long.toString(id);
+	}
+
+	public String getScreen_name() {
+		return screen_name;
+	}
+
+	public void setScreen_name(String screen_name) {
+		this.screen_name = screen_name;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
 	}
 
 	public long[] getIndices() {

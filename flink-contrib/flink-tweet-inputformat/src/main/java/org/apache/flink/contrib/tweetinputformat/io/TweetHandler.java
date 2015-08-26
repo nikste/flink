@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.flink.contrib.java.streaming.tweetinputformat.io;
+package org.apache.flink.contrib.tweetinputformat.io;
 
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.Contributors;
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.Tweet;
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities.HashTags;
+import org.apache.flink.contrib.tweetinputformat.model.tweet.Contributors;
+import org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet;
+import org.apache.flink.contrib.tweetinputformat.model.tweet.entities.HashTags;
 import org.json.simple.parser.ContentHandler;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
