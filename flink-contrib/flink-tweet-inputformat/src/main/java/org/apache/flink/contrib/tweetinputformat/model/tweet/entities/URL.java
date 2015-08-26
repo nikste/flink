@@ -15,31 +15,49 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+package org.apache.flink.contrib.tweetinputformat.model.tweet.entities;
 
 /**
- * An array of financial symbols starting with the dollar sign extracted from the
- * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} text.
+ * Represents URLs included in the text of a Tweet or within textual fields of a
+ * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.entities.UserMention} object.
  */
+public class URL {
 
-public class Symbol {
+	private String url = "";
 
-	private String text = "";
+	private String display_url = "";
+
+	private String expanded_url = "";
 
 	private long[] indices;
 
-	public Symbol() {
-		this.text = "";
+	public URL() {
 		this.setIndices(new long[]{0L, 0L});
-
 	}
 
-	public String getText() {
-		return text;
+
+	public String getUrl() {
+		return url;
 	}
 
-	public void setText(String text) {
-		this.text = text;
+	public void setUrl(String url) {
+		this.url = url;
+	}
+
+	public String getDisplay_url() {
+		return display_url;
+	}
+
+	public void setDisplay_url(String display_url) {
+		this.display_url = display_url;
+	}
+
+	public String getExpanded_url() {
+		return expanded_url;
+	}
+
+	public void setExpanded_url(String expanded_url) {
+		this.expanded_url = expanded_url;
 	}
 
 	public long[] getIndices() {

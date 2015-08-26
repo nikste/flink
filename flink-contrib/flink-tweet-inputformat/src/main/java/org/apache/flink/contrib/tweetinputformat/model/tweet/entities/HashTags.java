@@ -15,41 +15,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet;
+package org.apache.flink.contrib.tweetinputformat.model.tweet.entities;
 
 /**
- * Details the {@link Tweet} ID of the user’s own retweet (if
- * existent) of this {@link Tweet}.
+ * Represents hashtags which have been parsed out of the
+ * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} text.
  */
-public class CurrentUserRetweet {
 
-	private long id;
+public class HashTags {
 
-	private String id_str = "";
+	private long[] indices = new long[2];
 
-	public CurrentUserRetweet() {
-		reset();
+	private String text = "";
+
+
+	public long[] getIndices() {
+		return indices;
 	}
 
-	public void reset() {
-		id = 0L;
-		id_str = "";
+	public void setIndices(long[] indices) {
+		this.indices = indices;
+	}
+
+	public void setIndices(long start, long end) {
+		this.indices[0] = start;
+		this.indices[1] = end;
 
 	}
 
-	public long getId() {
-		return id;
+	public String getText() {
+		return text;
 	}
 
-	public void setId(long id) {
-		this.id = id;
+	public void setText(String text, boolean hashExist) {
+		if (hashExist) {
+			this.text = text.substring((int) indices[0] + 1);
+		} else {
+			this.text = text;
+		}
 	}
 
-	public String getId_str() {
-		return id_str;
-	}
-
-	public void setId_str() {
-		this.id_str = Long.toString(id);
-	}
 }

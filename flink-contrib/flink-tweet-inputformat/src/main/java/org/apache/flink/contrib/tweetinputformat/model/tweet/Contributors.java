@@ -15,27 +15,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+package org.apache.flink.contrib.tweetinputformat.model.tweet;
 
 /**
- * Represents other Twitter users mentioned in the text of the
- * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet}.
+ * Nullable. An collection of brief user objects (usually only one) indicating users who contributed
+ * to the authorship of the {@link Tweet} on behalf of the
+ * official tweet author.
  */
-public class UserMention {
+public class Contributors {
 
-	private long id;
+
+	private Long id = 0L;
 
 	private String id_str = "";
 
-	private String screen_name = "";
+	private String screenName = "";
 
-	private String name = "";
+	public Contributors() {
+		reset();
+	}
 
-	private long[] indices;
+	public Contributors(long id, String id_str, String screenName) {
 
-	public UserMention() {
+		this.id = id;
+		this.id_str = id_str;
+		this.screenName = screenName;
+	}
 
-		this.setIndices(new long[]{0L, 0L});
+	public void reset() {
+
+		id = 0L;
+		id_str = "";
+		screenName = "";
+
 	}
 
 	public long getId() {
@@ -50,31 +62,17 @@ public class UserMention {
 		return id_str;
 	}
 
-	public void setId_str() {
-		this.id_str = Long.toString(id);
+	public void setId_str(String id_str) {
+		this.id_str = id_str;
 	}
 
-	public String getScreen_name() {
-		return screen_name;
+	public String getScreenName() {
+		return screenName;
 	}
 
-	public void setScreen_name(String screen_name) {
-		this.screen_name = screen_name;
+	public void setScreenName(String screenName) {
+		this.screenName = screenName;
 	}
 
-	public String getName() {
-		return name;
-	}
 
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	public long[] getIndices() {
-		return indices;
-	}
-
-	public void setIndices(long[] indices) {
-		this.indices = indices;
-	}
 }

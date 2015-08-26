@@ -15,10 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.places;
+package org.apache.flink.contrib.tweetinputformat.model.places;
 
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.Coordinates;
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.Tweet;
+import org.apache.flink.contrib.tweetinputformat.model.tweet.Coordinates;
+import org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet;
 
 /**
  * {@link Places} are specific, named locations with

@@ -15,46 +15,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.flink.contrib.java.streaming.tweetinputformat.model.places;
-
-import java.util.ArrayList;
-import java.util.List;
+package org.apache.flink.contrib.tweetinputformat.model.tweet;
 
 /**
- * A series of longitude and latitude points, defining a box which will contain the Place entity
- * this bounding box is related to. Each point is an array in the form of [longitude, latitude].
- * Points are grouped into an array per bounding box. Bounding box arrays are wrapped in one
- * additional array to be compatible with the polygon notation.
+ * Nullable. Represents the geographic location of this
+ * {@link Tweet} as reported by the user or client
+ * application. The inner coordinates array is formatted as geoJSON longitude first, then latitude)
  */
-public class BoundingBox {
+public class Coordinates {
 
-	private List<List<double[]>> coordinates = new ArrayList<List<double[]>>();
+	private String type = "point";
 
-	private String type = "Polygon";
+	private double[] coordinates = new double[2];
 
-	public BoundingBox() {
-
-	}
-
-	public BoundingBox(List<double[]> points) {
-
-		this.coordinates.add(points);
+	public Coordinates() {
 
 	}
 
-	public List<List<double[]>> getCoordinates() {
+	public double[] getCoordinates() {
 		return coordinates;
 	}
 
-	public void setCoordinates(List<List<double[]>> coordinates) {
+	public void setCoordinates(double[] coordinates) {
 		this.coordinates = coordinates;
+	}
+
+	public void setCoordinates(double longitude, double latitude) {
+		this.coordinates[0] = longitude;
+		this.coordinates[1] = latitude;
 	}
 
 	public String getType() {
 		return type;
 	}
 
-	public void setType(String type) {
-		this.type = type;
+	@Override
+	public String toString() {
+		return "longitude = " + this.coordinates[0] + "  latitude = " + this.coordinates[1];
 	}
 }

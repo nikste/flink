@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.flink.contrib.java.streaming.tweetinputformat.io;
+package org.apache.flink.contrib.tweetinputformat.io;
 
 import org.apache.flink.api.common.io.DelimitedInputFormat;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
-import org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.Tweet;
+import org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet;
 import org.apache.flink.core.fs.FileInputSplit;
 import org.codehaus.jackson.JsonParseException;
 import org.json.simple.parser.JSONParser;
