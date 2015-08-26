@@ -15,21 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet;
 
+/**
+ * Details the {@link Tweet} ID of the user’s own retweet (if
+ * existent) of this {@link Tweet}.
+ */
+public class CurrentUserRetweet {
 
+	private long id;
 
-package org.apache.flink.contrib.streaming.scala
+	private String id_str = "";
 
-import java.util
+	public CurrentUserRetweet() {
+		reset();
+	}
 
-import org.apache.flink.streaming.api.scala.DataStream
-import org.apache.flink.contrib.streaming.java.{DataStreamUtils => JavaDataStreamUtils}
+	public void reset() {
+		id = 0L;
+		id_str = "";
 
+	}
 
-object DataStreamUtils {
+	public long getId() {
+		return id;
+	}
 
-  def collect[T](stream: DataStream[T]) : util.Iterator[T] =  {
-    JavaDataStreamUtils.collect[T](stream.getJavaStream)
-  }
+	public void setId(long id) {
+		this.id = id;
+	}
 
+	public String getId_str() {
+		return id_str;
+	}
+
+	public void setId_str() {
+		this.id_str = Long.toString(id);
+	}
 }

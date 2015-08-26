@@ -15,21 +15,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
 
+/**
+ * An array of financial symbols starting with the dollar sign extracted from the
+ * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} text.
+ */
 
+public class Symbol {
 
-package org.apache.flink.contrib.streaming.scala
+	private String text = "";
 
-import java.util
+	private long[] indices;
 
-import org.apache.flink.streaming.api.scala.DataStream
-import org.apache.flink.contrib.streaming.java.{DataStreamUtils => JavaDataStreamUtils}
+	public Symbol() {
+		this.text = "";
+		this.setIndices(new long[]{0L, 0L});
 
+	}
 
-object DataStreamUtils {
+	public String getText() {
+		return text;
+	}
 
-  def collect[T](stream: DataStream[T]) : util.Iterator[T] =  {
-    JavaDataStreamUtils.collect[T](stream.getJavaStream)
-  }
+	public void setText(String text) {
+		this.text = text;
+	}
 
+	public long[] getIndices() {
+		return indices;
+	}
+
+	public void setIndices(long[] indices) {
+		this.indices = indices;
+	}
 }

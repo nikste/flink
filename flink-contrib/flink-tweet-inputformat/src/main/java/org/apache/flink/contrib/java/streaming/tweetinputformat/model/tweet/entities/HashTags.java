@@ -15,21 +15,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+
+/**
+ * Represents hashtags which have been parsed out of the
+ * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} text.
+ */
+
+public class HashTags {
+
+	private long[] indices = new long[2];
+
+	private String text = "";
 
 
+	public long[] getIndices() {
+		return indices;
+	}
 
-package org.apache.flink.contrib.streaming.scala
+	public void setIndices(long[] indices) {
+		this.indices = indices;
+	}
 
-import java.util
+	public void setIndices(long start, long end) {
+		this.indices[0] = start;
+		this.indices[1] = end;
 
-import org.apache.flink.streaming.api.scala.DataStream
-import org.apache.flink.contrib.streaming.java.{DataStreamUtils => JavaDataStreamUtils}
+	}
 
+	public String getText() {
+		return text;
+	}
 
-object DataStreamUtils {
-
-  def collect[T](stream: DataStream[T]) : util.Iterator[T] =  {
-    JavaDataStreamUtils.collect[T](stream.getJavaStream)
-  }
+	public void setText(String text, boolean hashExist) {
+		if (hashExist) {
+			this.text = text.substring((int) indices[0] + 1);
+		} else {
+			this.text = text;
+		}
+	}
 
 }
