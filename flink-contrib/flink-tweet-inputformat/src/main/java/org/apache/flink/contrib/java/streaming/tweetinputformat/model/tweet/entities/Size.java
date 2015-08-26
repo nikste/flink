@@ -15,21 +15,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.flink.contrib.java.streaming.tweetinputformat.model.tweet.entities;
+
+/**
+ * An object showing available sizes for the media file.
+ */
+public class Size {
+
+	private long w;
+
+	private long h;
+
+	private String resize = "";
 
 
+	public Size(long width, long height, String resize) {
 
-package org.apache.flink.contrib.streaming.scala
+		this.w = width;
+		this.h = height;
+		this.resize = resize;
 
-import java.util
-
-import org.apache.flink.streaming.api.scala.DataStream
-import org.apache.flink.contrib.streaming.java.{DataStreamUtils => JavaDataStreamUtils}
+	}
 
 
-object DataStreamUtils {
+	public long getWidth() {
+		return w;
+	}
 
-  def collect[T](stream: DataStream[T]) : util.Iterator[T] =  {
-    JavaDataStreamUtils.collect[T](stream.getJavaStream)
-  }
+	public void setWidth(long width) {
+		this.w = width;
+	}
 
+	public long getHeight() {
+		return h;
+	}
+
+	public void setHeight(long height) {
+		this.h = height;
+	}
+
+	public String getResize() {
+		return resize;
+	}
+
+	public void setResize(String resize) {
+		this.resize = resize;
+	}
 }
