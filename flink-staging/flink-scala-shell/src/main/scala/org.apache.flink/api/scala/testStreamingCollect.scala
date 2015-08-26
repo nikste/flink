@@ -1,12 +1,13 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *	http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,13 +31,18 @@ import scala.tools.nsc.Settings
  */
 object testStreamingCollect {
   var cluster = new LocalFlinkMiniCluster(new Configuration, false, StreamingMode.STREAMING)
-  //var flinkIloop = new FlinkILoop("localhost",cluster.getJobManagerRPCPort,StreamingMode.STREAMING,None,inputBufferedReader,outInterpreterJPrintWrtier)
+  //var flinkIloop =
+  // new FlinkILoop("localhost",
+  // cluster.getJobManagerRPCPort,
+  // StreamingMode.STREAMING,None,
+  // inputBufferedReader,
+  // outInterpreterJPrintWrtier)
 
   /**
-  * Run the input using a Scala Shell and return the output of the shell.
-    * @param input commands to be processed in the shell
-  * @return output of shell
-  */
+   * Run the input using a Scala Shell and return the output of the shell.
+   * @param input commands to be processed in the shell
+   * @return output of shell
+   */
   def processInShell(input : String): String ={
 
     val in = new BufferedReader(new StringReader(input + "\n"))
@@ -51,8 +57,8 @@ object testStreamingCollect {
     val port = cluster.getJobManagerRPCPort
 
     var repl : FlinkILoop=  new FlinkILoop(
-        host,port, StreamingMode.STREAMING,
-        in,new PrintWriter(out))
+      host,port, StreamingMode.STREAMING,
+      in,new PrintWriter(out))
 
 
     repl.settings = new Settings()
@@ -73,24 +79,29 @@ object testStreamingCollect {
     //out.toString //+ stdout
     stdout + out.toString
   }
-def main(args:Array[String]) : Unit ={
-  println("start")
+  def main(args:Array[String]) : Unit ={
+    println("start")
 
-  var commands =
-  """
+    var commands =
+      """
     println("starting test in shell")
 
-    import org.apache.flink.contrib.scala.streaming
-
     val text = env.socketTextStream("localhost", 9999)
-    val counts = text.flatMap { _.toLowerCase.split("\\W+") filter { _.nonEmpty } }.map { (_, 1) }.groupBy(0).sum(1)
-    env.execute()
+
+    val counts = text.flatMap { _.toLowerCase.split("\\W+").filter{ _.nonEmpty } }.map { (_, 1) }.groupBy(0).sum(1)
+
+    import org.apache.flink.contrib.streaming.scala.DataStreamUtils._
+    var collected = collect[(String,Int)](counts)
 
 
+    while(collected.hasNext()){
+      var el = collected.next()
+      println("next element:" + el)
+      }
     println("ending test in shell")
-  """.stripMargin
-  println(processInShell(commands))
+      """.stripMargin
+    println(processInShell(commands))
 
-  println("end")
-}
+    println("end")
+  }
 }
