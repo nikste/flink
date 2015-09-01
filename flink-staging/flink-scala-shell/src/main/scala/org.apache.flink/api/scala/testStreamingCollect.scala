@@ -54,7 +54,7 @@ object testStreamingCollect {
 
     // new local cluster
     val host = "localhost"
-    val port = cluster.getJobManagerRPCPort
+    val port = cluster.getLeaderRPCPort;
 
     var repl : FlinkILoop=  new FlinkILoop(
       host,port, StreamingMode.STREAMING,
