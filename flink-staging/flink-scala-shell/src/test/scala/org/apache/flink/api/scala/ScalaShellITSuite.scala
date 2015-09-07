@@ -212,6 +212,52 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     out.toString + stdout
   }
 
+  /**
+   * tests flink shell startup with remote cluster (starts cluster internally)
+   */
+  test("start flink scala shell with remote cluster") {
+
+    val input: String = "val els = env.fromElements(\"a\",\"b\");\n" +
+      "els.print\nError\n:q\n"
+
+    val in: BufferedReader = new BufferedReader(
+      new StringReader(
+        input + "\n"))
+    val out: StringWriter = new StringWriter
+
+    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
+    val oldOut: PrintStream = System.out
+    System.setOut(new PrintStream(baos))
+    val c = cluster.getOrElse(null);
+    var args : Array[String] = null;
+    if(c != null){
+      args = Array("remote",
+        c.hostname,
+        Integer.toString(c.getLeaderRPCPort))
+    }
+    else{
+      assert(false)
+    }
+
+    //start scala shell with initialized
+    // buffered reader for testing
+    FlinkShell.bufferedReader = in;
+    FlinkShell.main(args)
+    baos.flush
+
+    val output: String = baos.toString
+    System.setOut(oldOut)
+
+    assert(output.contains("Job execution switched to status FINISHED."))
+    assert(output.contains("a\nb"))
+
+    assert((!output.contains("Error")))
+    assert((!output.contains("ERROR")))
+    assert((!output.contains("Exception")))
+    assert((!output.contains("failed")))
+  }
+
+
   var cluster: Option[ForkableFlinkMiniCluster] = None
   val parallelism = 4
 
