@@ -281,6 +281,21 @@ HINT: You can use print() on a DataSet to print the contents to this shell.
 
   }
 
+  def getBatchExecutionEnvironment(): ExecutionEnvironment = {
+    scalaEnv match {
+      case b: ExecutionEnvironment => return b
+      case _ => return null
+    }
+  }
+
+  def getStreamExecutionEnvironment(): StreamExecutionEnvironment = {
+    scalaEnv match {
+      case s: StreamExecutionEnvironment => return s
+      case _ => return null
+    }
+  }
+
+
   def getExternalJars(): Array[String] = externalJars.getOrElse(Array.empty[String])
 }
 
