@@ -21,6 +21,8 @@ package org.apache.flink.api.scala
 
 import java.io.{StringWriter, BufferedReader}
 
+import org.apache.flink.runtime.StreamingMode
+
 import scala.tools.nsc.Settings
 
 import org.apache.flink.configuration.Configuration
@@ -44,7 +46,8 @@ object FlinkShell {
         port: Int = -1,
         host: String = "none",
         externalJars: Option[Array[String]] = None,
-        flinkShellExecutionMode : Int = UNDEFINED)
+        flinkShellExecutionMode : Int = UNDEFINED,
+        streamingMode : StreamingMode = StreamingMode.BATCH_ONLY)
 
     val parser = new scopt.OptionParser[Config]("start-scala-shell.sh") {
       head ("Flink Scala Shell")
@@ -56,7 +59,11 @@ object FlinkShell {
           case (x,c) =>
             val xArray = x.split(":")
             c.copy(externalJars = Option(xArray))
-          } text("specifies additional jars to be used in Flink\n")
+          } text("specifies additional jars to be used in Flink\n"),
+        opt[Unit]("streaming") abbr("s") action {
+          case (_,c) =>
+            c.copy(streamingMode = StreamingMode.STREAMING)
+        } text("set this to use streaming api")
         )
 
       cmd("remote") action { (_, c) =>
@@ -72,7 +79,11 @@ object FlinkShell {
           case (x,c) =>
             val xArray = x.split(":")
             c.copy(externalJars = Option(xArray))
-          } text("specifies additional jars to be used in Flink")
+          } text("specifies additional jars to be used in Flink"),
+        opt[Unit]("streaming") abbr("s") action {
+        case (_,c) =>
+          c.copy(streamingMode = StreamingMode.STREAMING)
+      } text("set this to use streaming api")
 
       )
       help("help") abbr("h") text("prints this usage text\n")
@@ -85,7 +96,8 @@ object FlinkShell {
         startShell(config.host,
           config.port,
           config.flinkShellExecutionMode,
-          config.externalJars)
+          config.externalJars,
+          config.streamingMode)
 
       case _ => println("Could not parse program arguments")
     }
@@ -96,7 +108,9 @@ object FlinkShell {
       userHost : String, 
       userPort : Int,
       executionMode : Int,
-      externalJars : Option[Array[String]] = None): Unit ={
+      externalJars : Option[Array[String]] = None,
+      streamingMode : StreamingMode = StreamingMode.BATCH_ONLY
+                  ): Unit ={
     
     println("Starting Flink Shell:")
 
@@ -104,14 +118,14 @@ object FlinkShell {
 
     // either port or userhost not specified by user, create new minicluster
     val (host,port) = if (executionMode == LOCAL) {
-      cluster = new LocalFlinkMiniCluster(new Configuration, false)
+      cluster = new LocalFlinkMiniCluster(new Configuration, false, streamingMode)
       cluster.start()
       val port = cluster.getLeaderRPCPort
       println(s"\nStarting local Flink cluster (host: localhost, port: $port).\n")
       ("localhost",port)
     } else if(executionMode == UNDEFINED) {
       println("Error: please specify execution mode:")
-      println("[local | remote <host> <port>]")
+      println("local | remote <host> <port> [-s | -streaming]")
       return
     } else if(userHost == "none" || userPort == -1){
       println("Error: <host> or <port> not specified!")
@@ -125,10 +139,18 @@ object FlinkShell {
     // custom shell
     var repl : FlinkILoop = null;
     if(bufferedReader == null) {
-      repl = new FlinkILoop(host, port, externalJars) //new MyILoop();
+      repl = new FlinkILoop(host,
+        port,
+        streamingMode,
+        externalJars) //new MyILoop();
     }else{
       val out = new StringWriter()
-      repl = new FlinkILoop(host, port, externalJars,bufferedReader, new  JPrintWriter(out));
+      repl = new FlinkILoop(host,
+        port,
+        streamingMode,
+        externalJars,
+        bufferedReader,
+        new  JPrintWriter(out));
     }
     repl.settings = new Settings()
 
@@ -141,6 +163,7 @@ object FlinkShell {
 
     if (cluster != null) {
       cluster.stop()
+      cluster = null;
     }
 
     println(" good bye ..")
