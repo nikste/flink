@@ -29,44 +29,6 @@ import org.scalatest.junit.JUnitRunner
 class ScalaShellLocalStartupBatchITCase extends FunSuite with Matchers {
 
   /**
-   * tests flink shell with local setup in Streaming mode
-   */
-  test("start flink scala shell with local cluster streaming mode") {
-
-    val input: String = "val els = env.fromElements(\"a\",\"b\");\n" +
-      "els.print\nError\nenv.execute()\n:q\n"
-
-    val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
-    val out: StringWriter = new StringWriter
-    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
-    val oldOut: PrintStream = System.out
-    System.setOut(new PrintStream(baos))
-
-    val args: Array[String] = Array("local","-s")
-
-    //start flink scala shell
-    FlinkShell.bufferedReader = in;
-    FlinkShell.main(args)
-
-
-    baos.flush
-    val output: String = baos.toString
-    System.setOut(oldOut)
-
-    //System.out.println(output)
-    //println(output)
-
-    assert(output.contains("Job execution switched to status FINISHED."))
-    assert(output.contains("a\nb"))
-
-    assert((!output.contains("Error")))
-    assert((!output.contains("ERROR")))
-    assert((!output.contains("Exception")))
-    assert((!output.contains("failed")))
-  }
-
-
-  /**
    * tests flink shell with local setup in Batch mode
    */
   test("start flink scala shell with local cluster batch mode") {
