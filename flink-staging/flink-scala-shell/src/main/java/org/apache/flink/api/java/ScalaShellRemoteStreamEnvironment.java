@@ -23,6 +23,8 @@ import org.apache.flink.api.scala.FlinkILoop;
 import org.apache.flink.client.program.JobWithJars;
 import org.apache.flink.client.program.ProgramInvocationException;
 import org.apache.flink.streaming.api.environment.RemoteStreamEnvironment;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironmentFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,6 +113,17 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 		return(super.execute(jobName));
 		/*JobGraph jobGraph = streamGraph.getJobGraph(jobName);
 		return executeRemotely(jobGraph);*/
+	}
+
+	public void setAsContext() {
+		StreamExecutionEnvironmentFactory factory = new StreamExecutionEnvironmentFactory() {
+			@Override
+			public StreamExecutionEnvironment createExecutionEnvironment() {
+				throw new UnsupportedOperationException("Execution Environment is already defined" +
+						" for this shell.");
+			}
+		};
+		initializeContextEnvironment(factory);
 	}
 
 }
