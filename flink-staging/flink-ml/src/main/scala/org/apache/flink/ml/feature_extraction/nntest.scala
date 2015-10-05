@@ -23,7 +23,7 @@ import breeze.linalg.{DenseVector, DenseMatrix}
 /**
  * Created by nikste on 7/1/15.
  */
-object nntest {
+object Nntest {
 
   val r = scala.util.Random
   def generateTrainingSample() : (DenseVector[Double],DenseVector[Double]) = {

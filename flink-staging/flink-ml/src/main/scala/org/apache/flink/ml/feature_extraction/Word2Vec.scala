@@ -281,7 +281,7 @@ class Word2Vec
 
 object Word2Vec {
 
-  // ====================================== Parameters =============================================
+  // ====================================== Parameters =========================================
 
   case object VectorSize extends Parameter[Int] {
     override val defaultValue: Option[Int] = Some(20)
@@ -306,13 +306,13 @@ object Word2Vec {
   case object BatchSize extends Parameter[Int] {
     override val defaultValue: Option[Int] = Some(1000)
   }
-  // ==================================== Factory methods ==========================================
+  // ==================================== Factory methods ======================================
 
   def apply(): Word2Vec = {
     new Word2Vec()
   }
 
-  // ====================================== Operations =============================================
+  // ====================================== Operations =========================================
 
   def getVocab(): Seq[VocabWord] = {
     this.vocab
@@ -377,7 +377,8 @@ object Word2Vec {
       .filter(_.cn >= minCount)
       .collect()
       .sortWith((a,b) => a.cn > b.cn)
-    // TODO: avoid collect, could be a bottleneck since it runs on local vm and is defaulted to 512 mb.
+    // TODO: avoid collect, could be a bottleneck since it runs on local
+    // vm and is defaulted to 512 mb.
 
     vocabSize = vocab.length
     println("vocabSize = " + vocabSize)
@@ -390,7 +391,8 @@ object Word2Vec {
     println("trainWordsCount = " + trainWordsCount)
 
     require(vocabSize > 0, "The vocabulary size should be > 0. You may need to check " +
-      "the setting of minCount, which could be large enough to remove all your words in sentences.")
+      "the setting of minCount, which could be large enough to remove all your words " +
+      "in sentences.")
 
   }
 
@@ -493,7 +495,10 @@ object Word2Vec {
       new RichMapFunction[Iterable[String], Array[Int]] {
         override def map(value: Iterable[String]): Array[Int] = {
 
-          val hashList: java.util.List[mutable.HashMap[String, Int]] = getRuntimeContext.getBroadcastVariable[mutable.HashMap[String, Int]]("bcHash")
+          val hashList: java.util.List[mutable.HashMap[String, Int]] =
+            getRuntimeContext
+              .getBroadcastVariable[mutable.HashMap[String, Int]]("bcHash")
+
           val hash: mutable.HashMap[String, Int] = hashList.get(0);
 
           var list = ListBuffer[Int]()
@@ -520,7 +525,13 @@ object Word2Vec {
     out
   }
 
-  def train_sg_test_iterative(localLearningRate : Double,vocab: java.util.ArrayList[VocabWord],layer0:breeze.linalg.DenseMatrix[Double],layer1:breeze.linalg.DenseMatrix[Double],inIdx:Int, outIdx:Int,last_it:Boolean):(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Double) = {
+  def train_sg_test_iterative(localLearningRate : Double,
+                              vocab: java.util.ArrayList[VocabWord],
+                              layer0:breeze.linalg.DenseMatrix[Double],
+                              layer1:breeze.linalg.DenseMatrix[Double],
+                              inIdx:Int, outIdx:Int,
+                              last_it:Boolean) :
+  (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Double) = {
 
     var error : Double = 0.0
     var learningRate = localLearningRate
@@ -532,7 +543,8 @@ object Word2Vec {
     // input -> hidden
     var l1 : breeze.linalg.DenseVector[Double] = layer0(::,inIdx) // hidden layer
 
-    var neu1e : breeze.linalg.DenseVector[Double] = breeze.linalg.DenseVector.zeros[Double](vectorSize)
+    var neu1e : breeze.linalg.DenseVector[Double] =
+      breeze.linalg.DenseVector.zeros[Double](vectorSize)
 
     for( pointsIdx <- 0 to vocabword.codeLen - 1){
 
@@ -565,7 +577,11 @@ object Word2Vec {
   }
 
 
-  def train_sentence_non_optimized(vocab : java.util.ArrayList[VocabWord],layer0 : breeze.linalg.DenseMatrix[Double],layer1 : breeze.linalg.DenseMatrix[Double],sentence : Array[Int]): (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Int,Double) ={
+  def train_sentence_non_optimized(vocab : java.util.ArrayList[VocabWord],
+                                   layer0 : breeze.linalg.DenseMatrix[Double],
+                                   layer1 : breeze.linalg.DenseMatrix[Double],
+                                   sentence : Array[Int]) :
+  (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Int,Double) ={
     var trainingCount = 0
     var total_error : Double = 0
     var layer0New = layer0
@@ -573,7 +589,7 @@ object Word2Vec {
 
     for (pos <- 0 to sentence.length - 1) {
       // chose at random, words closer to the original word are more important
-      var currentWindowSize : Int = scala.util.Random.nextInt(5) + 1//5//scala.util.Random.nextInt(3) + 2
+      var currentWindowSize : Int = scala.util.Random.nextInt(5) + 1
       // go along
       for (outpos <- (-currentWindowSize + pos) to (pos + currentWindowSize)) {
         if (outpos >= 0 && outpos != pos && outpos <= sentence.length - 1) {
@@ -581,7 +597,13 @@ object Word2Vec {
           val outIdx: Int = sentence(outpos)
           val inIdx: Int = sentence(pos)
 
-          val res = train_sg_test_iterative(learningRate,vocab, layer0New, layer1New, inIdx, outIdx, false)
+          val res = train_sg_test_iterative(learningRate,
+            vocab,
+            layer0New,
+            layer1New,
+            inIdx,
+            outIdx,
+            false)
 
           layer0New = res._1
           layer1New = res._2
@@ -594,12 +616,22 @@ object Word2Vec {
     var errr = total_error/trainingCount.toDouble
     if(errr.isNaN){
       errr = 0.0
-      println("errorNaN! " + total_error + "/" + trainingCount.toDouble + " sentenceLength:" + sentence.length)
+      println("errorNaN! " +
+        total_error + "/" +
+        trainingCount.toDouble +
+        " sentenceLength:" +
+        sentence.length)
     }
     (layer0New,layer1New,trainingCount, errr)
   }
 
-  def train_sentence(localLearningRate : Double, vocab : java.util.ArrayList[VocabWord],layer0 : breeze.linalg.DenseMatrix[Double],layer1 : breeze.linalg.DenseMatrix[Double],sentence : Array[Int]): (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Int,Double) ={
+  def train_sentence(localLearningRate : Double,
+                     vocab : java.util.ArrayList[VocabWord],
+                     layer0 : breeze.linalg.DenseMatrix[Double],
+                     layer1 : breeze.linalg.DenseMatrix[Double],
+                     sentence : Array[Int]) :
+  (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Int,Double) ={
+
     var trainingCount = 0
     var total_error : Double = 0
     var layer0New = layer0
@@ -616,7 +648,13 @@ object Word2Vec {
           val outIdx: Int = sentence(outpos)
           val inIdx: Int = sentence(pos)
 
-          val res = train_sg_test_iterative(localLearningRate,vocab, layer0New, layer1New, inIdx, outIdx, false)
+          val res = train_sg_test_iterative(localLearningRate,
+            vocab,
+            layer0New,
+            layer1New,
+            inIdx,
+            outIdx,
+            false)
 
           layer0New = res._1
           layer1New = res._2
@@ -630,7 +668,15 @@ object Word2Vec {
   }
 
 
-  def trainNetwork_distributed_not_optimized(vectorSize: Int, learningRate: Double, windowSize: Int, numIterations: Int, layer0: breeze.linalg.DenseMatrix[Double], layer1: breeze.linalg.DenseMatrix[Double], sentenceInNumbers: DataSet[Array[Int]], vocabDS: DataSet[VocabWord]): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
+  def trainNetwork_distributed_not_optimized(vectorSize: Int,
+                                             learningRate: Double,
+                                             windowSize: Int,
+                                             numIterations: Int,
+                                             layer0: breeze.linalg.DenseMatrix[Double],
+                                             layer1: breeze.linalg.DenseMatrix[Double],
+                                             sentenceInNumbers: DataSet[Array[Int]],
+                                             vocabDS: DataSet[VocabWord]) :
+  (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
 
     var sentencecount : Long = sentenceInNumbers.count
 
@@ -643,23 +689,52 @@ object Word2Vec {
     var max = num_keys
 
     // (w1,w2)
-    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Int)] = sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1,0))//env.fromElements((1,2))
+    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],
+      breeze.linalg.DenseMatrix[Double],Int)] =
+      sentenceInNumbers
+        .getExecutionEnvironment
+        .fromElements((layer0,layer1,0))
+
     // touple (key,sentence)
-    var sentences_withkeys :GroupedDataSet[(Int,Array[Int])] = sentenceInNumbers.map(new keyGeneratorFunction(max.toInt)).name("mapSentences").groupBy(0)
+    var sentences_withkeys : GroupedDataSet[(Int,Array[Int])] =
+      sentenceInNumbers
+        .map(new keyGeneratorFunction(max.toInt))
+        .name("mapSentences").groupBy(0)
 
 
     var maxIterations : Int = numIterations
     //var iterativeOperator = weights.iterate(maxIterations)
-    val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] = weights.iterate(maxIterations)
+    val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Double],
+      breeze.linalg.DenseMatrix[Double],Int)] =
+      weights.iterate(maxIterations)
     {
-      previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] => {
-        val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] = sentences_withkeys.reduceGroup {
+      previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double],
+        breeze.linalg.DenseMatrix[Double],Int)] => {
+
+        val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Double],
+          breeze.linalg.DenseMatrix[Double],Int)] = sentences_withkeys.reduceGroup {
+
           // comput updates of weight matrices per "class" / training data partition
-          new RichGroupReduceFunction[(Int, Array[Int]), (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] {
-            override def reduce(values: Iterable[(Int, Array[Int])], out: Collector[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)]): Unit = {
+          new RichGroupReduceFunction[(Int, Array[Int]),
+            (breeze.linalg.DenseMatrix[Double],
+              breeze.linalg.DenseMatrix[Double],Int)] {
+
+            override def reduce(values: Iterable[(Int, Array[Int])],
+                                out: Collector[(breeze.linalg.DenseMatrix[Double],
+                                  breeze.linalg.DenseMatrix[Double],Int)]): Unit = {
+
               var it = values.iterator()
-              var iterativeWeights: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)]("iterativeWeights").get(0)
-              var vocab : java.util.ArrayList[VocabWord] = getIterationRuntimeContext.getBroadcastVariable("vocab").asInstanceOf[java.util.ArrayList[VocabWord]]
+              var iterativeWeights: (breeze.linalg.DenseMatrix[Double],
+                breeze.linalg.DenseMatrix[Double],Int) =
+                getIterationRuntimeContext.getBroadcastVariable[(
+                  breeze.linalg.DenseMatrix[Double],
+                    breeze.linalg.DenseMatrix[Double],
+                    Int)]("iterativeWeights").get(0)
+
+              var vocab : java.util.ArrayList[VocabWord] =
+                getIterationRuntimeContext
+                  .getBroadcastVariable("vocab")
+                  .asInstanceOf[java.util.ArrayList[VocabWord]]
 
 
               // layer 0 and layer 1
@@ -669,18 +744,29 @@ object Word2Vec {
               var trainCounts = 0
               while (it.hasNext) {
                 var sentence : Array[Int] = it.next()._2
-                var res = train_sentence(learningRate.toDouble,vocab ,layer0 : breeze.linalg.DenseMatrix[Double],layer1 : breeze.linalg.DenseMatrix[Double],sentence)
+                var res = train_sentence(learningRate.toDouble,
+                  vocab ,
+                  layer0 : breeze.linalg.DenseMatrix[Double],
+                  layer1 : breeze.linalg.DenseMatrix[Double],
+                  sentence)
+
                 layer0 = res._1
                 layer1 = res._2
                 trainCounts += res._3
               }
-              out.collect((iterativeWeights._1, iterativeWeights._2,trainCounts))//,trainCounts))
+              out.collect((iterativeWeights._1, iterativeWeights._2,trainCounts))
             }
           }
         }.withBroadcastSet(previousWeights, "iterativeWeights").withBroadcastSet(vocabDS,"vocab")
-          .reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] {
-          override def reduce(value1: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int), value2: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = {
+          .reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Double],
+          breeze.linalg.DenseMatrix[Double],Int)] {
 
+          override def reduce(
+                               value1: (breeze.linalg.DenseMatrix[Double],
+                                 breeze.linalg.DenseMatrix[Double],Int),
+                               value2: (breeze.linalg.DenseMatrix[Double],
+                                 breeze.linalg.DenseMatrix[Double],Int)) :
+          (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = {
 
             var w1 = value1._3.toDouble
             var w2 = value2._3.toDouble
@@ -714,28 +800,60 @@ object Word2Vec {
     (res._1,res._2)
   }
 
-  def trainNetwork_distributed_parameter_parallelism(layer0: breeze.linalg.DenseMatrix[Double], layer1: breeze.linalg.DenseMatrix[Double], sentenceInNumbers: DataSet[Array[Int]]): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
+  def trainNetwork_distributed_parameter_parallelism(layer0: breeze.linalg.DenseMatrix[Double],
+                                                     layer1: breeze.linalg.DenseMatrix[Double],
+                                                     sentenceInNumbers: DataSet[Array[Int]]) :
+  (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
 
     println("training distributed with parallelism")
 
     // (w1,w2)
-    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double])] = sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1))//env.fromElements((1,2))
-    // touple (key,sentence)
+    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double])] =
+      sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1))
 
-    var vocabDS : DataSet[VocabWord] = sentenceInNumbers.getExecutionEnvironment.fromCollection(vocab)
+    var vocabDS : DataSet[VocabWord] =
+      sentenceInNumbers.getExecutionEnvironment.fromCollection(vocab)
 
     var maxIterations : Int = numIterations
     //var iterativeOperator = weights.iterate(maxIterations)
-    val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] = weights.iterate(maxIterations)
+    val finalWeights: DataSet[(
+      breeze.linalg.DenseMatrix[Double],
+        breeze.linalg.DenseMatrix[Double])] =
+      weights.iterate(maxIterations)
     {
-      previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] => {
-        val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] = sentenceInNumbers.map(x=>x).reduceGroup {
+      previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double],
+        breeze.linalg.DenseMatrix[Double])] => {
+
+        val nextWeights  : DataSet[(
+          breeze.linalg.DenseMatrix[Double],
+            breeze.linalg.DenseMatrix[Double])] =
+          sentenceInNumbers.map(x=>x).reduceGroup {
+
           // comput updates of weight matrices per "class" / training data partition
-          new RichGroupReduceFunction[ Array[Int], (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] {
-            override def reduce(values: Iterable[Array[Int]], out: Collector[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)]): Unit = {
+          new RichGroupReduceFunction[Array[Int],
+            (breeze.linalg.DenseMatrix[Double],
+              breeze.linalg.DenseMatrix[Double],
+              Int)] {
+
+            override def reduce(values: Iterable[Array[Int]],
+                                out: Collector[(
+                                  breeze.linalg.DenseMatrix[Double],
+                                    breeze.linalg.DenseMatrix[Double],
+                                    Int)]): Unit = {
+
               var it = values.iterator()
-              var iterativeWeights: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])]("iterativeWeights").get(0)
-              var vocab : java.util.ArrayList[VocabWord] = getIterationRuntimeContext.getBroadcastVariable("vocab").asInstanceOf[java.util.ArrayList[VocabWord]]
+              var iterativeWeights : (
+                breeze.linalg.DenseMatrix[Double],
+                  breeze.linalg.DenseMatrix[Double]) =
+                getIterationRuntimeContext.getBroadcastVariable[(
+                  breeze.linalg.DenseMatrix[Double],
+                    breeze.linalg.DenseMatrix[Double])]("iterativeWeights")
+                  .get(0)
+
+              var vocab : java.util.ArrayList[VocabWord] =
+                getIterationRuntimeContext
+                  .getBroadcastVariable("vocab")
+                  .asInstanceOf[java.util.ArrayList[VocabWord]]
 
               // layer 0 and layer 1
               var layer0 = iterativeWeights._1
@@ -744,7 +862,12 @@ object Word2Vec {
               var trainCounts = 0
               while (it.hasNext) {
                 var sentence : Array[Int] = it.next()
-                var res = train_sentence(learningRate,vocab ,layer0 : breeze.linalg.DenseMatrix[Double],layer1 : breeze.linalg.DenseMatrix[Double],sentence)
+                var res = train_sentence(learningRate,
+                  vocab,
+                  layer0 : breeze.linalg.DenseMatrix[Double],
+                  layer1 : breeze.linalg.DenseMatrix[Double],
+                  sentence)
+
                 layer0 = res._1
                 layer1 = res._2
                 trainCounts += res._3
@@ -752,9 +875,20 @@ object Word2Vec {
               out.collect((iterativeWeights._1, iterativeWeights._2,trainCounts))//,trainCounts))
             }
           }
-        }.name("reduceGroup->sentences_withKeys").withBroadcastSet(previousWeights, "iterativeWeights").withBroadcastSet(vocabDS,"vocab").setParallelism(8)
-          .reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] {
-          override def reduce(value1: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int), value2: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = {
+        }.name("reduceGroup->sentences_withKeys")
+            .withBroadcastSet(previousWeights, "iterativeWeights")
+            .withBroadcastSet(vocabDS,"vocab")
+            .setParallelism(8)
+          .reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Double],
+            breeze.linalg.DenseMatrix[Double],
+            Int)] {
+          override def reduce(
+                               value1: (breeze.linalg.DenseMatrix[Double],
+                                 breeze.linalg.DenseMatrix[Double],
+                                 Int),
+                               value2: (breeze.linalg.DenseMatrix[Double],
+                                 breeze.linalg.DenseMatrix[Double],Int)) :
+          (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = {
 
             var w1 = value1._3.toDouble
             var w2 = value2._3.toDouble
@@ -777,7 +911,10 @@ object Word2Vec {
     var res = finalWeights.first(1).collect()(0)
     (res._1,res._2)
   }
-  def trainNetwork_distributed(layer0: breeze.linalg.DenseMatrix[Double], layer1: breeze.linalg.DenseMatrix[Double], sentenceInNumbers: DataSet[Array[Int]]): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
+  def trainNetwork_distributed(layer0: breeze.linalg.DenseMatrix[Double],
+                               layer1: breeze.linalg.DenseMatrix[Double],
+                               sentenceInNumbers: DataSet[Array[Int]]) :
+  (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
 
     println("training distributed")
 
@@ -795,25 +932,54 @@ object Word2Vec {
     var max = num_keys
 
     // (w1,w2)
-    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double])] = sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1))//env.fromElements((1,2))
+    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],
+      breeze.linalg.DenseMatrix[Double])] =
+      sentenceInNumbers
+        .getExecutionEnvironment
+        .fromElements((layer0,layer1))
+
     // touple (key,sentence)
-    var sentences_withkeys :GroupedDataSet[(Int,Array[Int])] = sentenceInNumbers.map(new keyGeneratorFunction(max.toInt)).name("mapSentences").groupBy(0)
+    var sentences_withkeys : GroupedDataSet[(Int,Array[Int])] =
+      sentenceInNumbers.map(new keyGeneratorFunction(max.toInt)).name("mapSentences").groupBy(0)
 
 
-    var vocabDS : DataSet[VocabWord] = sentenceInNumbers.getExecutionEnvironment.fromCollection(vocab)
+    var vocabDS : DataSet[VocabWord] = sentenceInNumbers
+      .getExecutionEnvironment
+      .fromCollection(vocab)
 
     var maxIterations : Int = numIterations
     //var iterativeOperator = weights.iterate(maxIterations)
-    val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] = weights.iterate(maxIterations)
+    val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Double],
+      breeze.linalg.DenseMatrix[Double])] = weights.iterate(maxIterations)
       {
-        previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] => {
-          val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] = sentences_withkeys.reduceGroup {
+        previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double],
+          breeze.linalg.DenseMatrix[Double])] => {
+
+          val nextWeights  : DataSet[(breeze.linalg.DenseMatrix[Double],
+            breeze.linalg.DenseMatrix[Double])] =
+            sentences_withkeys.reduceGroup {
+
             // comput updates of weight matrices per "class" / training data partition
-            new RichGroupReduceFunction[(Int, Array[Int]), (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] {
-              override def reduce(values: Iterable[(Int, Array[Int])], out: Collector[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)]): Unit = {
+            new RichGroupReduceFunction[(Int, Array[Int]),
+              (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] {
+              override def reduce(
+                                   values: Iterable[(Int, Array[Int])],
+                                   out: Collector[(breeze.linalg.DenseMatrix[Double],
+                                     breeze.linalg.DenseMatrix[Double],Int)]): Unit = {
+
                 var it = values.iterator()
-                var iterativeWeights: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])]("iterativeWeights").get(0)
-                var vocab : java.util.ArrayList[VocabWord] = getIterationRuntimeContext.getBroadcastVariable("vocab").asInstanceOf[java.util.ArrayList[VocabWord]]
+                var iterativeWeights :
+                (breeze.linalg.DenseMatrix[Double],
+                  breeze.linalg.DenseMatrix[Double]) =
+                  getIterationRuntimeContext
+                    .getBroadcastVariable[(
+                    breeze.linalg.DenseMatrix[Double],
+                      breeze.linalg.DenseMatrix[Double])]("iterativeWeights")
+                    .get(0)
+
+                var vocab : java.util.ArrayList[VocabWord] =
+                  getIterationRuntimeContext.getBroadcastVariable("vocab")
+                    .asInstanceOf[java.util.ArrayList[VocabWord]]
 
                 // layer 0 and layer 1
                 var layer0 = iterativeWeights._1
@@ -822,7 +988,13 @@ object Word2Vec {
                 var trainCounts = 0
                 while (it.hasNext) {
                   var sentence : Array[Int] = it.next()._2
-                  var res = train_sentence(learningRate,vocab ,layer0 : breeze.linalg.DenseMatrix[Double],layer1 : breeze.linalg.DenseMatrix[Double],sentence)
+
+                  var res = train_sentence(learningRate,
+                    vocab,
+                    layer0 : breeze.linalg.DenseMatrix[Double],
+                    layer1 : breeze.linalg.DenseMatrix[Double],
+                    sentence)
+
                   layer0 = res._1
                   layer1 = res._2
                   trainCounts += res._3
@@ -830,9 +1002,19 @@ object Word2Vec {
                 out.collect((iterativeWeights._1, iterativeWeights._2,trainCounts))
               }
             }
-          }.name("reduceGroup->sentences_withKeys").withBroadcastSet(previousWeights, "iterativeWeights").withBroadcastSet(vocabDS,"vocab")
-            .reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)] {
-            override def reduce(value1: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int), value2: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int)): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = {
+          }.name("reduceGroup->sentences_withKeys")
+              .withBroadcastSet(previousWeights, "iterativeWeights")
+              .withBroadcastSet(vocabDS,"vocab")
+            .reduce(new ReduceFunction[(breeze.linalg.DenseMatrix[Double],
+              breeze.linalg.DenseMatrix[Double],Int)] {
+
+            override def reduce(
+                                 value1: (breeze.linalg.DenseMatrix[Double],
+                                   breeze.linalg.DenseMatrix[Double],
+                                   Int),
+                                 value2: (breeze.linalg.DenseMatrix[Double],
+                                   breeze.linalg.DenseMatrix[Double],Int)) :
+            (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double],Int) = {
 
               var w1 = value1._3.toDouble
               var w2 = value2._3.toDouble
@@ -857,7 +1039,14 @@ object Word2Vec {
     (res._1,res._2)
   }
 
-  def train_sg_smart_aggregate(alpha : Double, vocab: java.util.ArrayList[VocabWord],layer0:breeze.linalg.DenseMatrix[Double],layer1:breeze.linalg.DenseMatrix[Double],inIdx:Int, outIdx:Int):(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Double) = {
+  def train_sg_smart_aggregate(
+                                alpha : Double,
+                                vocab : java.util.ArrayList[VocabWord],
+                                layer0 : breeze.linalg.DenseMatrix[Double],
+                                layer1 : breeze.linalg.DenseMatrix[Double],
+                                inIdx : Int,
+                                outIdx : Int) :
+  (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Double) = {
 
     var error : Double = 0.0
 
@@ -868,7 +1057,8 @@ object Word2Vec {
     // input -> hidden
     var l1 : breeze.linalg.DenseVector[Double] = layer0(::,inIdx) // hidden layer
 
-    var neu1e : breeze.linalg.DenseVector[Double] = breeze.linalg.DenseVector.zeros[Double](vectorSize)
+    var neu1e : breeze.linalg.DenseVector[Double] =
+      breeze.linalg.DenseVector.zeros[Double](vectorSize)
 
     for( pointsIdx <- 0 to vocabword.codeLen - 1){
 
@@ -897,7 +1087,17 @@ object Word2Vec {
   }
 
 
-  def train_sentence_smart_aggregate( vocab : java.util.ArrayList[VocabWord],layer0 : breeze.linalg.DenseMatrix[Double],layer1 : breeze.linalg.DenseMatrix[Double],sentence : Array[Int]):  (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double],Int,Double,mutable.MutableList[Int],mutable.MutableList[Int]) ={
+  def train_sentence_smart_aggregate( vocab : java.util.ArrayList[VocabWord],
+                                      layer0 : breeze.linalg.DenseMatrix[Double],
+                                      layer1 : breeze.linalg.DenseMatrix[Double],
+                                      sentence : Array[Int]) :
+  (breeze.linalg.DenseMatrix[Double],
+    breeze.linalg.DenseMatrix[Double],
+    Int,
+    Double,
+    mutable.MutableList[Int],
+    mutable.MutableList[Int]) ={
+
     var trainingCount = 0
     var total_error : Double = 0
     var layer0New = layer0
@@ -940,29 +1140,49 @@ object Word2Vec {
     (layer0New,layer1New,trainingCount, errr,l0Modifications,l1Modifications)
   }
 
-  def trainNetwork_distributed_smart_aggregate(layer0: breeze.linalg.DenseMatrix[Double], layer1: breeze.linalg.DenseMatrix[Double], sentenceInNumbers: DataSet[Array[Int]]): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
+  def trainNetwork_distributed_smart_aggregate(layer0: breeze.linalg.DenseMatrix[Double],
+                                               layer1: breeze.linalg.DenseMatrix[Double],
+                                               sentenceInNumbers: DataSet[Array[Int]]) :
+  (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
 
     println("training distributed with smart aggregate")
 
-    var vocabSizeDS : DataSet[Int] = sentenceInNumbers.getExecutionEnvironment.fromElements(vocabSize)
-    var learningRateDS : DataSet[Double] = sentenceInNumbers.getExecutionEnvironment.fromElements(learningRate)
+    var vocabSizeDS : DataSet[Int] =
+      sentenceInNumbers.getExecutionEnvironment.fromElements(vocabSize)
+    var learningRateDS : DataSet[Double] =
+      sentenceInNumbers.getExecutionEnvironment.fromElements(learningRate)
 
-    var vocabDS : DataSet[VocabWord] = sentenceInNumbers.getExecutionEnvironment.fromCollection(vocab)
+    var vocabDS : DataSet[VocabWord] =
+      sentenceInNumbers.getExecutionEnvironment.fromCollection(vocab)
 
-    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double])] = sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1))//env.fromElements((1,2))
+    var weights : DataSet[(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double])] =
+      sentenceInNumbers.getExecutionEnvironment.fromElements((layer0,layer1))
 
     var maxIterations : Int = numIterations
 
-    val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] = weights.iterate(maxIterations)
+    val finalWeights: DataSet[(breeze.linalg.DenseMatrix[Double],
+      breeze.linalg.DenseMatrix[Double])] = weights.iterate(maxIterations)
     {
-      previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])] => {
-        val nextWeights = sentenceInNumbers.flatMap { new RichFlatMapFunction[Array[Int],Array[(Int,breeze.linalg.DenseVector[Double])]] {
-          override def flatMap(value: Array[Int], out: Collector[Array[(Int, DenseVector[Double])]]): Unit = {
+      previousWeights : DataSet[(breeze.linalg.DenseMatrix[Double],
+        breeze.linalg.DenseMatrix[Double])] => {
+        val nextWeights = sentenceInNumbers.flatMap {
+          new RichFlatMapFunction[Array[Int],Array[(Int,breeze.linalg.DenseVector[Double])]] {
+          override def flatMap(value: Array[Int],
+                               out: Collector[Array[(Int, DenseVector[Double])]]) :  Unit = {
 
-            var iterativeWeights: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])]("iterativeWeights").get(0)
-            var vocab : java.util.ArrayList[VocabWord] = getIterationRuntimeContext.getBroadcastVariable("vocab").asInstanceOf[java.util.ArrayList[VocabWord]]
+            var iterativeWeights: (breeze.linalg.DenseMatrix[Double],
+              breeze.linalg.DenseMatrix[Double]) =
+              getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Double],
+                breeze.linalg.DenseMatrix[Double])]("iterativeWeights").get(0)
 
-            var learningRateLocal : Double = getIterationRuntimeContext.getBroadcastVariable("learningRate").get(0).asInstanceOf[Double]
+            var vocab : java.util.ArrayList[VocabWord] =
+              getIterationRuntimeContext.getBroadcastVariable("vocab")
+                .asInstanceOf[java.util.ArrayList[VocabWord]]
+
+            var learningRateLocal : Double =
+              getIterationRuntimeContext.getBroadcastVariable("learningRate")
+                .get(0).asInstanceOf[Double]
+
             // layer 0 and layer 1
             var layer0 = iterativeWeights._1
             var layer1 = iterativeWeights._2
@@ -987,7 +1207,9 @@ object Word2Vec {
             l1Modifications = l1Modifications ++ res._6
 
             //TODO: change to LONG!!
-            var vocabSize :Int = getIterationRuntimeContext.getBroadcastVariable("vocabSize").get(0).asInstanceOf[Int]
+            var vocabSize : Int =
+              getIterationRuntimeContext
+                .getBroadcastVariable("vocabSize").get(0).asInstanceOf[Int]
             // collect changes only
 
             // only distinct changes:
@@ -1020,17 +1242,19 @@ object Word2Vec {
           .withBroadcastSet(learningRateDS,"learningRate")
           .withBroadcastSet(vocabSizeDS,"vocabSize")
           .reduce{new RichReduceFunction[Array[(Int,breeze.linalg.DenseVector[Double])]]{
-          override def reduce(value1: Array[(Int, DenseVector[Double])], value2: Array[(Int, DenseVector[Double])]): Array[(Int, DenseVector[Double])] = {
+          override def reduce(value1 : Array[(Int, DenseVector[Double])],
+                              value2: Array[(Int, DenseVector[Double])]) :
+          Array[(Int, DenseVector[Double])] = {
 
             var res = Iterator.tabulate(vocabSize * 2) { index =>
-              if (value1(index)._1 == index && value2(index)._1 == index) {
+              if ( value1(index)._1 == index && value2(index)._1 == index ) {
                 (index, (value1(index)._2 :+ value2(index)._2 )/ 2.0)
               } else if(value1(index)._1 == index)
               {
                 (index, value1(index)._2)
-              }else if(value2(index)._1 == index)
+              }else if(value2(index)._1 == index){
                 (index, value2(index)._2)
-              else{
+              }else{
                 (-1,breeze.linalg.DenseVector.zeros[Double](1))
               }
             }
@@ -1039,16 +1263,23 @@ object Word2Vec {
           }
         }}
           .reduceGroup{
-          new RichGroupReduceFunction[Array[(Int,breeze.linalg.DenseVector[Double])],(breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double])]{
-            def reduce(values: Iterable[Array[(Int,breeze.linalg.DenseVector[Double])]], out: Collector[(DenseMatrix[Double], DenseMatrix[Double])]): Unit = {
+          new RichGroupReduceFunction[Array[(Int,breeze.linalg.DenseVector[Double])],
+            (breeze.linalg.DenseMatrix[Double],breeze.linalg.DenseMatrix[Double])]{
+            def reduce(values: Iterable[Array[(Int,breeze.linalg.DenseVector[Double])]],
+                       out: Collector[(DenseMatrix[Double], DenseMatrix[Double])]): Unit = {
 
-              var iterativeWeights: (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = getIterationRuntimeContext.getBroadcastVariable[(breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double])]("iterativeWeights").get(0)
+              var iterativeWeights :
+              (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) =
+                getIterationRuntimeContext
+                  .getBroadcastVariable[(breeze.linalg.DenseMatrix[Double],
+                  breeze.linalg.DenseMatrix[Double])]("iterativeWeights").get(0)
 
               // layer 0 and layer 1
               var layer0 = iterativeWeights._1
               var layer1 = iterativeWeights._2
 
-              var vocabSize : Int = getIterationRuntimeContext.getBroadcastVariable("vocabSize").get(0).asInstanceOf[Int]
+              var vocabSize : Int = getIterationRuntimeContext.getBroadcastVariable("vocabSize")
+                .get(0).asInstanceOf[Int]
               //var it = values.iterator
 
               var superIt = values.iterator() // one iterator = one matrix change (and one like)
@@ -1081,7 +1312,11 @@ object Word2Vec {
     var res = finalWeights.first(1).collect()(0)
     (res._1,res._2)
   }
-  def trainNetwork_iterative(numIterations: Int, layer0: breeze.linalg.DenseMatrix[Double], layer1: breeze.linalg.DenseMatrix[Double], sentenceInNumbers: DataSet[Array[Int]]): (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
+  def trainNetwork_iterative(numIterations: Int,
+                             layer0: breeze.linalg.DenseMatrix[Double],
+                             layer1: breeze.linalg.DenseMatrix[Double],
+                             sentenceInNumbers: DataSet[Array[Int]]) :
+  (breeze.linalg.DenseMatrix[Double], breeze.linalg.DenseMatrix[Double]) = {
 
     println("training iterative")
 
@@ -1116,7 +1351,10 @@ object Word2Vec {
       for(j <- 0  to sentences_collected.length - 1) {
         wordcount += sentences_collected(j).size
         //var localLearningRate = learningRate
-        var localLearningRate = learningRate - (learningRate - minLearningRate) * (wordcount.toDouble / trainWordsCount.toDouble)
+        var localLearningRate =
+          learningRate - (learningRate - minLearningRate) *
+            (wordcount.toDouble / trainWordsCount.toDouble)
+
         //println(localLearningRate)
         if(localLearningRate < 0.0001f){
           localLearningRate = 0.0001f
@@ -1190,7 +1428,8 @@ object Word2Vec {
       new RichMapFunction[Array[String], Array[Int]] {
         override def map(value: Array[String]): Array[Int] = {
 
-          val hashList: java.util.List[mutable.HashMap[String, Int]] = getRuntimeContext.getBroadcastVariable[mutable.HashMap[String, Int]]("bcHash")
+          val hashList: java.util.List[mutable.HashMap[String, Int]] =
+            getRuntimeContext.getBroadcastVariable[mutable.HashMap[String, Int]]("bcHash")
           val hash: mutable.HashMap[String, Int] = hashList.get(0);
 
           var list = ListBuffer[Int]()
@@ -1209,14 +1448,20 @@ object Word2Vec {
       }
     }.withBroadcastSet(input_filtered.getExecutionEnvironment.fromElements(vocabHash), "bcHash")
 
-    // filter if there are sentences with length 1 now that we excluded every word with count < min_count
+    // filter if there are sentences with length 1
+    // now that we excluded every word with count < min_count
     sentencesInts = sentencesInts.filter(_.length > 1)
 
-    var layer0 : breeze.linalg.DenseMatrix[Double] = breeze.linalg.DenseMatrix.tabulate[Double](vectorSize, vocabSize){case (i, j) =>( Random.nextInt(1000).toDouble - 500.0) / 500.0}//breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize).asInstanceOf[breeze.linalg.DenseMatrix[Double]]//,Seq.fill(vectorSize,vocabSize)(Random.nextInt(1000).toDouble - 500.0 / 500.0).toArray[Double])// - breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize)
-    var layer1 : breeze.linalg.DenseMatrix[Double] = breeze.linalg.DenseMatrix.tabulate[Double](vocabSize,vectorSize){case (i, j) => ( Random.nextInt(1000).toDouble - 500.0) / 500.0}//breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize).asInstanceOf[breeze.linalg.DenseMatrix[Double]]//,Seq.fill(vectorSize,vocabSize)(Random.nextInt(1000).toDouble - 500.0 / 500.0).toArray[Double])// - breeze.linalg.DenseMatrix.rand[Double](vectorSize,vocabSize)
+    var layer0 : breeze.linalg.DenseMatrix[Double] =
+      breeze.linalg.DenseMatrix.tabulate[Double](vectorSize, vocabSize){case (i, j) =>
+        ( Random.nextInt(1000).toDouble - 500.0) / 500.0}
+    var layer1 : breeze.linalg.DenseMatrix[Double] =
+      breeze.linalg.DenseMatrix.tabulate[Double](vocabSize,vectorSize){case (i, j) =>
+        ( Random.nextInt(1000).toDouble - 500.0) / 500.0}
 
     // different training Methods TODO: decimate
-    //var res = trainNetwork_distributed_not_optimized(vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
+    //var res = trainNetwork_distributed_not_optimized(
+    // vectorSize,learningRate,windowSize,1,layer0,layer1,sentencesInts,vocabDS )
     ////var res = trainNetwork_iterative(1,layer0,layer1,sentencesInts )
 
     //var res = trainNetwork_distributed_smart_aggregate(layer0,layer1,sentencesInts)
@@ -1237,7 +1482,9 @@ object Word2Vec {
     }
 
     // compute word vector norms:
-    normsLayer0 = breeze.linalg.norm(layer0,breeze.linalg.Axis._0,2).toDenseVector.mapValues(_.toDouble)
+    normsLayer0 = breeze.linalg.norm(layer0,breeze.linalg.Axis._0,2)
+      .toDenseVector.mapValues(_.toDouble)
+
     wordVecs = layer0.copy
     vocabGlob = vocab
   }
@@ -1246,7 +1493,8 @@ object Word2Vec {
    * @return
    */
   implicit def fitWord2Vec = new FitOperation[Word2Vec, Array[String]] {
-    override def fit(instance: Word2Vec, fitParameters: ParameterMap, input: DataSet[Array[String]])
+    override def fit(instance: Word2Vec, fitParameters: ParameterMap,
+                     input: DataSet[Array[String]])
     : Unit = {
       // load parameters
       val resultingParameters = instance.parameters ++ fitParameters
@@ -1268,13 +1516,15 @@ object Word2Vec {
       var numI = resultingParameters.get[Int](NumIterations)
       numI match {
         case Some(ni) => numIterations = ni
-        case None => throw new Exception("Could not retrieve number of Iterations, correctly specified?")
+        case None => throw new Exception("Could not retrieve number of Iterations, " +
+          "correctly specified?")
       }
 
       var vSize = resultingParameters.get[Int](VectorSize)
       vSize match {
         case Some(vS) => vectorSize = vS
-        case None => throw new Exception("Could not retrieve vector size of hidden layer, correctly specified?")
+        case None => throw new Exception("Could not retrieve vector size of hidden layer, " +
+          "correctly specified?")
       }
 
       var bSize = resultingParameters.get[Int](BatchSize)
@@ -1308,9 +1558,9 @@ object Word2Vec {
 
     def getWordVector(input : String) : breeze.linalg.DenseVector[Double] = {
       var ch = word2VecMap.get(input)
-      var china = breeze.linalg.DenseVector(0.0).asInstanceOf[breeze.linalg.DenseVector[Double]]
+      var china = breeze.linalg.DenseVector(0.0)
       ch match {
-        case Some(ni) => china = ni.toDenseVector.asInstanceOf[breeze.linalg.DenseVector[Double]]
+        case Some(ni) => china = ni.toDenseVector
         case None => throw new Exception("Could not retrieve word vector for " + input)
       }
       china
@@ -1370,7 +1620,9 @@ object Word2Vec {
 
 
       println("saving wordVectorMatrix")
-      val dm = breeze.linalg.csvwrite(new File(filepath + "_wordVecs"),breeze.linalg.convert(wordVecs,Double),separator=';')
+      val dm = breeze.linalg.csvwrite(new File(filepath + "_wordVecs"),
+        breeze.linalg.convert(wordVecs,Double),
+        separator=';')
     }
 
     def loadModel(filepath : String): Unit = {
@@ -1379,7 +1631,8 @@ object Word2Vec {
       var fis = new FileInputStream(f)
       var ois = new ObjectInputStream(fis)
       try{
-        word2VecMap = ois.readObject().asInstanceOf[ mutable.HashMap[String, breeze.linalg.DenseMatrix[Double]]]
+        word2VecMap = ois.readObject()
+          .asInstanceOf[ mutable.HashMap[String, breeze.linalg.DenseMatrix[Double]]]
       }finally{
         ois.close()
       }
@@ -1395,7 +1648,7 @@ object Word2Vec {
       }
       println("vocabSize:" + vocabGlob.size)
       vocabSize = vocabGlob.size
-      println("word2VecMap: size:"+ word2VecMap.size)
+      println("word2VecMap: size:" + word2VecMap.size)
 
       println("initializing Word->ind mapping")
       for(i <- 0  to vocabGlob.size - 1){
@@ -1405,17 +1658,26 @@ object Word2Vec {
       println("Word->ind mapping size:" + vocabHash.size)
 
       println("loading wordVectorMatrix")
-      wordVecs = breeze.linalg.convert(breeze.linalg.csvread(new File(filepath + "_wordVecs"),separator=';'),Double)
-      normsLayer0 = breeze.linalg.norm(wordVecs,breeze.linalg.Axis._0,2).toDenseVector.mapValues(_.toDouble)
-      println("wordVecs: rows:"+wordVecs.rows + " cols:" + wordVecs.cols)
+      wordVecs =
+        breeze.linalg.convert(breeze.linalg.csvread(
+          new File(filepath + "_wordVecs"),separator=';'),Double)
+
+      normsLayer0 = breeze.linalg.norm(wordVecs, breeze.linalg.Axis._0, 2)
+        .toDenseVector.mapValues(_.toDouble)
+
+      println("wordVecs: rows:" + wordVecs.rows + " cols:" + wordVecs.cols)
     }
 
     /**
      * computes cosine distance
      */
-    def computeCosDists(wordVec : breeze.linalg.DenseVector[Double]): breeze.linalg.DenseVector[Double] = {
+    def computeCosDists(wordVec : breeze.linalg.DenseVector[Double]) :
+    breeze.linalg.DenseVector[Double] = {
+
       var normWordVec = breeze.linalg.norm(wordVec,2)
-      var cosDists : breeze.linalg.DenseVector[Double] = breeze.linalg.DenseVector.zeros[Double](vocabSize)
+      var cosDists : breeze.linalg.DenseVector[Double] =
+        breeze.linalg.DenseVector.zeros[Double](vocabSize)
+
       for( i <- 0 to vocabSize - 1){
         cosDists(i) = wordVecs(::,i).t * wordVec / ( normsLayer0(i)  * wordVec.norm(2).toDouble )
       }
@@ -1424,7 +1686,13 @@ object Word2Vec {
 
 
 
-    def printFirstN(similarWords : ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])], n : Int) : ListBuffer[(String,Double,DenseVector[Double])] = {
+    def printFirstN(
+                     similarWords : ListBuffer[(
+                       String,
+                         Double,
+                         breeze.linalg.DenseVector[Double])],
+                     n : Int) : ListBuffer[(String,Double,DenseVector[Double])] = {
+
       var range = n
       if(range > similarWords.size){
         range = similarWords.size
@@ -1442,10 +1710,14 @@ object Word2Vec {
      * @param negative
      * @return
      */
-    def findSynonyms(positive : Array[String], negative : Array[String]) :ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] = {
+    def findSynonyms(positive : Array[String],
+                     negative : Array[String]) :
+    ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] = {
       // compute result:
 
-      var avrgVec : breeze.linalg.DenseVector[Double] = breeze.linalg.DenseVector.zeros[Double](vectorSize)
+      var avrgVec : breeze.linalg.DenseVector[Double] =
+        breeze.linalg.DenseVector.zeros[Double](vectorSize)
+
       for(i <- 0 to positive.length - 1){
         avrgVec += getWordVector(positive(i))
       }
@@ -1467,9 +1739,12 @@ object Word2Vec {
       resList
     }
 
-    def findSynonyms(wordVec: breeze.linalg.DenseVector[Double]): ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] = {
+    def findSynonyms(wordVec: breeze.linalg.DenseVector[Double]) :
+    ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] = {
+
       var cosDists = computeCosDists(wordVec)
-      var resList: ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] = new ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])]()
+      var resList: ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] =
+        new ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])]()
 
       for(i <- 0 to vocabSize -1){
         resList += new Tuple3(vocabGlob(i).word, cosDists(i)   ,wordVecs(::,i) )
@@ -1477,7 +1752,9 @@ object Word2Vec {
       resList
     }
 
-    def findSynonyms(inputWord : String): ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] = {
+    def findSynonyms(inputWord : String) :
+    ListBuffer[(String,Double,breeze.linalg.DenseVector[Double])] = {
+
       var wordVector = getWordVector(inputWord)
       var resList = findSynonyms(wordVector)
       // remove query word (will always be most likeli match)

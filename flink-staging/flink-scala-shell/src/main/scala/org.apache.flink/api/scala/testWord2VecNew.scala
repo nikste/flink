@@ -45,33 +45,68 @@ object testWord2VecNew {
     /*
     var filenames = Array("1000.txt","10000.txt","100000.txt","1000000.txt")
     for (fn <- filenames) {
-      var inputData: DataSet[String] = env.readTextFile("/home/nikste/Downloads/enwiki-20141106-pages-articles26.xml-p026625004p029624976/enwiki_res_"+fn)//1000.txt") //("/home/nikste/Downloads/t4_small_small_small_small_newlines")//"/home/nikste/Downloads/t4_stupid")
-      //var inputData : DataSet[String] = env.readTextFile("/home/owner/workspace-flink/data/wikipedia/enwiki_res_100000.txt")//("/home/nikste/Downloads/t4_small_small_small_small_newlines")//"/home/nikste/Downloads/t4_stupid")
+      var inputData: DataSet[String] =
+      env.readTextFile(
+      "/home/nikste/Downloads
+      /enwiki-20141106-pages-articles26.xml-p026625004p029624976/enwiki_res_"+fn)
+      //1000.txt")
+       / /("/home/nikste/Downloads/t4_small_small_small_small_newlines")
+       //"/home/nikste/Downloads/t4_stupid")
+
+      //var inputData : DataSet[String] =
+      env.readTextFile(
+      "/home/owner/workspace-flink/data/wikipedia/enwiki_res_100000.txt")
+      //("/home/nikste/Downloads/t4_small_small_small_small_newlines")
+      //"/home/nikste/Downloads/t4_stupid")
 
 
-      //var inputDataArray : DataSet[Array[String]] = inputData.map(article => article.split("\\."))
+      //var inputDataArray : DataSet[Array[String]] =
+      inputData.map(article => article.split("\\."))
 
-      //var inputDataSeq : DataSet[Array[String]]  = inputData.map(line => line.split(" "))
+      //var inputDataSeq : DataSet[Array[String]]  =
+      inputData.map(line => line.split(" "))
 
       var inputDataSeq = inputData.map(line => line.split("\\."))
 
       inputDataSeq = inputDataSeq.flatMap[Array[String]] {
         new FlatMapFunction[Array[String], Array[String]] {
-          override def flatMap(value: Array[String], out: Collector[Array[String]]): Unit = {
+          override def flatMap(value: Array[String],
+          out: Collector[Array[String]]): Unit = {
 
-            var stopwordlist = Array("a", "the", "of", "in", "and", "to", "was", "is", "for", "on", "as", "by", "with", "that", "at", "from", "he", "it", "this", "are", "an", "his", "be", "were", "has", "i", "or", "not", "which", "also", "but", "they", "their", "have", "you", "after", "when")
+            var stopwordlist = Array("a",
+            "the", "of", "in", "and", "to",
+            "was", "is", "for", "on", "as",
+            "by", "with", "that", "at", "from",
+            "he", "it", "this", "are", "an",
+            "his", "be", "were", "has", "i",
+            "or", "not", "which", "also", "but",
+            "they", "their", "have", "you", "after",
+            "when")
 
             for (i <- 0 to value.length - 1) {
               var sentence: String = value(i)
-              var wordArray: Array[String] = sentence.split(" ").filter(_ != " ").filter(_.nonEmpty).map(_.replaceAll("[,]", "")).map(_.replaceAll("[:]", "")).map(_.replaceAll("[/]", "")).map(_.replaceAll("[']", "")).map(_.replaceAll("[\"]", "")).map(_.toLowerCase) //.filter(!stopwordlist.contains(_))
+              var wordArray: Array[String] =
+              sentence.split(" ").filter(_ != " ")
+              .filter(_.nonEmpty).map(_.replaceAll("[,]", ""))
+              .map(_.replaceAll("[:]", "")).map(_.replaceAll("[/]", ""))
+              .map(_.replaceAll("[']", "")).map(_.replaceAll("[\"]", ""))
+              .map(_.toLowerCase) //.filter(!stopwordlist.contains(_))
+
               out.collect(wordArray)
             }
           }
         }
       }
       var coll = inputDataSeq.collect()
-      //var f = scala.tools.nsc.io.File("/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-100000.txt")
-      val fw = new FileWriter("/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-" + fn,true)//"/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-1000.txt", true)
+      //var f =
+      scala.tools.nsc.io.File(
+      "/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-100000.txt")
+
+      val fw =
+      new FileWriter(
+      "/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-"
+      + fn,true)//"/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-1000.txt"
+      , true)
 
       try {
         for (el <- coll) {
@@ -113,14 +148,19 @@ object testWord2VecNew {
    println("number of training data:" + inputDataSeq.count)
 */
 
-    // var inputDataSeq = env.readTextFile("/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-10000.txt").map(line => line.split(" "))
+    // var inputDataSeq = env.readTextFile(
+    // "/home/nikste/workspace-flink/datasets/enwiki-20141106-pages-articles26-10000.txt")
+    // .map(line => line.split(" "))
+
     //  inputDataSeq = inputDataSeq.filter(_.length > 1)
     /* var dmbefore = breeze.linalg.DenseMatrix((1.0,2.0),(3.0,4.0))
-  val dm = breeze.linalg.csvwrite(new File("/home/nikste/workspace-flink/datasets/matrix"),dmbefore,separator=';')
+  val dm = breeze.linalg.csvwrite(new File("/home/nikste/workspace-flink/datasets/matrix"),
+  dmbefore,separator=';')
 
     println("densematrix before")
     println(dmbefore)
-  val dmafter = breeze.linalg.csvread(new File("/home/nikste/workspace-flink/datasets/matrix"),separator=';')
+  val dmafter = breeze.linalg.csvread(new File("/home/nikste/workspace-flink/datasets/matrix"),
+  separator=';')
     println("densematrix after")
     println(dmafter)
 
@@ -145,7 +185,8 @@ object testWord2VecNew {
 
     var fis = new FileInputStream(f)
     var ois = new ObjectInputStream(fis)
-    var hashmapRead : mutable.HashMap[String, breeze.linalg.DenseVector[Double]]= ois.readObject().asInstanceOf[ mutable.HashMap[String, breeze.linalg.DenseVector[Double]]]
+    var hashmapRead : mutable.HashMap[String, breeze.linalg.DenseVector[Double]]=
+     ois.readObject().asInstanceOf[ mutable.HashMap[String, breeze.linalg.DenseVector[Double]]]
     ois.close()
 
     println("after")
@@ -159,7 +200,10 @@ object testWord2VecNew {
    //println(norm(m,breeze.linalg.Axis._0,2))
 
     */
-    var inputDataSeq = env.readTextFile("/media/nikste/moarspace/workspace-flink/datasets/text8").map(line => line.split(" "))
+    var inputDataSeq =
+      env.readTextFile("/media/nikste/moarspace/workspace-flink/datasets/text8")
+        .map(line => line.split(" "))
+
     val w2v = Word2Vec()
 
 
@@ -169,7 +213,8 @@ object testWord2VecNew {
     /*
 for(testnumbers <- 0 to 10000){
   println("testnumber:" + testnumbers)
-    //var inputDataSeq = env.readTextFile("/media/nikste/moarspace/workspace-flink/datasets/text8").map(line => line.split(" "))
+    //var inputDataSeq = env.readTextFile("/media/nikste/moarspace/workspace-flink/datasets/text8")
+    .map(line => line.split(" "))
     var in : Array[Array[String]] = new Array[Array[String]](1000)
     for(i <- 0 to in.length - 1 by 10){
       in(i) = Array[String]("b", "a", "b", "a")

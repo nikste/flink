@@ -37,7 +37,8 @@ class NeuralNet(weights:Array[DenseMatrix[Double]],learningRate : Double) {
   def activation_function(in: DenseVector[Double]): DenseVector[Double] = {
       var out : DenseVector[Double] = breeze.numerics.exp(-in)
       out = out :+ 1.0
-      var ones : breeze.linalg.DenseVector[Double] = breeze.linalg.DenseVector.ones[Double](out.length)
+      var ones : breeze.linalg.DenseVector[Double] =
+        breeze.linalg.DenseVector.ones[Double](out.length)
       out = 1.0 ./ (out)
       out
     }
@@ -48,7 +49,8 @@ class NeuralNet(weights:Array[DenseMatrix[Double]],learningRate : Double) {
       }
     }
   
-    def train(input:DenseVector[Double],target:DenseVector[Double]): DenseVector[Double] = {//DenseVector[Double] ={
+    def train(input:DenseVector[Double],target:DenseVector[Double]): DenseVector[Double] = {
+      //DenseVector[Double] ={
       
       var vectorSize = weights(0).rows
 
@@ -73,7 +75,8 @@ class NeuralNet(weights:Array[DenseMatrix[Double]],learningRate : Double) {
       println("backpropagated_error:\n" + backpropagated_error)
       println("a_1\n" + a_1_withBias)
       */
-      var d_hidden : DenseVector[Double] = backpropagated_error.slice(0,backpropagated_error.length-1) :* (a_1 :* ( - a_1 + 1d))
+      var d_hidden : DenseVector[Double] =
+        backpropagated_error.slice(0,backpropagated_error.length-1) :* (a_1 :* ( - a_1 + 1d))
       
       // update weights:
       var delta_weight_1 = d_output * a_1_withBias.t //remove here with bias
@@ -85,9 +88,11 @@ class NeuralNet(weights:Array[DenseMatrix[Double]],learningRate : Double) {
       println("d_hidden:  " + d_hidden.toDenseMatrix.rows + "," + d_hidden.toDenseMatrix.cols  )
       println("update:\n" +DenseMatrix.horzcat(delta_weight_0, d_hidden.toDenseMatrix.t))
       */
-      weights(1) = weights(1) :-  learningRate * delta_weight_1//DenseMatrix.horzcat( delta_weight_1,   d_output.toDenseMatrix)
+      weights(1) = weights(1) :-  learningRate * delta_weight_1
+      //DenseMatrix.horzcat( delta_weight_1,   d_output.toDenseMatrix)
       
-      weights(0) = weights(0) :- learningRate * delta_weight_0//DenseMatrix.horzcat(delta_weight_0, d_hidden.toDenseMatrix.t)
+      weights(0) = weights(0) :- learningRate * delta_weight_0
+      //DenseMatrix.horzcat(delta_weight_0, d_hidden.toDenseMatrix.t)
       
       var error = abs(a_2 - target)
       error
@@ -154,7 +159,8 @@ class NeuralNet(weights:Array[DenseMatrix[Double]],learningRate : Double) {
       
       
       // update weights:
-      var updateTerm : DenseMatrix[Double] = (d_output.t * output_act).asInstanceOf[DenseMatrix[Double]] 
+      var updateTerm : DenseMatrix[Double] = (d_output.t * output_act)
+      .asInstanceOf[DenseMatrix[Double]]
       weights(1) -= learningRate * updateTerm
       updateTerm = (d_hidden.t * hidden_act).asInstanceOf[DenseMatrix[Double]]
       weights(0) -= learningRate * updateTerm
@@ -202,7 +208,8 @@ class NeuralNet(weights:Array[DenseMatrix[Double]],learningRate : Double) {
           if(hidden_net(i) < 0.000000000001){
             hidden_net(i) = 0.000000000001
           }
-          layer0(i,inIdx) += -learningRate * errgrad1(i,netOutputIdx) * hidden_net(i) * (1 - hidden_net(i))
+          layer0(i,inIdx) += -learningRate * errgrad1(i,netOutputIdx) *
+      hidden_net(i) * (1 - hidden_net(i))
         }
       }
 
