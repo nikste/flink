@@ -191,13 +191,19 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val repl = externalJars match {
       case Some(ej) => new FlinkILoop(
-        host, port,
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
         Option(Array(ej)),
-        in, new PrintWriter(out))
+        in,
+        new PrintWriter(out))
 
       case None => new FlinkILoop(
-        host, port,
-        in, new PrintWriter(out))
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
+        in,
+        new PrintWriter(out))
     }
 
     repl.settings = new Settings()

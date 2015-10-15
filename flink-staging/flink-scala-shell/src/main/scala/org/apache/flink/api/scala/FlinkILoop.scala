@@ -20,7 +20,9 @@ package org.apache.flink.api.scala
 
 import java.io.{BufferedReader, File, FileOutputStream}
 
-import org.apache.flink.api.java.{JarHelper, ScalaShellRemoteEnvironment}
+import org.apache.flink.api.java.{ScalaShellRemoteStreamEnvironment, JarHelper, ScalaShellRemoteEnvironment}
+import org.apache.flink.runtime.StreamingMode
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.AbstractID
 
 import scala.tools.nsc.interpreter._
@@ -29,6 +31,7 @@ import scala.tools.nsc.interpreter._
 class FlinkILoop(
     val host: String,
     val port: Int,
+    val streamingMode : StreamingMode,
     val externalJars: Option[Array[String]],
     in0: Option[BufferedReader],
     out0: JPrintWriter)
@@ -36,38 +39,63 @@ class FlinkILoop(
 
   def this(host: String,
            port: Int,
+           streaming : StreamingMode,
            externalJars: Option[Array[String]],
            in0: BufferedReader, 
            out: JPrintWriter){
-    this(host: String, port: Int, externalJars, Some(in0), out)
+    this(host: String, port: Int, streaming, externalJars, Some(in0), out)
   }
 
-  def this(host: String, port: Int, externalJars: Option[Array[String]]){
-    this(host: String, port: Int, externalJars, None, new JPrintWriter(Console.out, true))
+  def this(host: String,
+           port: Int,
+           streaming: StreamingMode,
+           externalJars: Option[Array[String]]){
+    this(host: String,
+      port: Int,
+      streaming,
+      externalJars,
+      None,
+      new JPrintWriter(Console.out, true))
   }
   
-  def this(host: String, port: Int, in0: BufferedReader, out: JPrintWriter){
-    this(host: String, port: Int, None, in0: BufferedReader, out: JPrintWriter)
+  def this(host: String,
+           port: Int,
+           streaming: StreamingMode,
+           in0: BufferedReader,
+           out: JPrintWriter){
+    this(host: String, port: Int, streaming, None, in0: BufferedReader, out: JPrintWriter)
   }
 
   // remote environment
-  private val remoteEnv: ScalaShellRemoteEnvironment = {
-    // allow creation of environments
-    ScalaShellRemoteEnvironment.resetContextEnvironments()
-    
-    // create our environment that submits against the cluster (local or remote)
-    val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
-    
-    // prevent further instantiation of environments
-    ScalaShellRemoteEnvironment.disableAllContextAndOtherEnvironments()
-    
-    remoteEnv
+  private var remoteEnv = {
+    streamingMode match{
+      case StreamingMode.STREAMING =>
+        // allow creation of environments
+        ScalaShellRemoteStreamEnvironment.resetContextEnvironments()
+        // create our environment that submits against the cluster (local or remote)
+        val remoteEnv = new ScalaShellRemoteStreamEnvironment(host,port,this)
+        // prevent further instantiation of environments
+        ScalaShellRemoteStreamEnvironment.disableAllContextAndOtherEnvironments()
+        remoteEnv
+      case StreamingMode.BATCH_ONLY =>
+        // allow creation of environments
+        ScalaShellRemoteEnvironment.resetContextEnvironments()
+        // create our environment that submits against the cluster (local or remote)
+        val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
+        // prevent further instantiation of environments
+        ScalaShellRemoteEnvironment.disableAllContextAndOtherEnvironments()
+        remoteEnv
+    }
   }
 
   // local environment
-  val scalaEnv: ExecutionEnvironment = {
-    val scalaEnv = new ExecutionEnvironment(remoteEnv)
-    scalaEnv
+  val scalaEnv = {
+    remoteEnv match{
+      case s : ScalaShellRemoteStreamEnvironment =>
+        new StreamExecutionEnvironment(s)
+      case b : ScalaShellRemoteEnvironment =>
+        new ExecutionEnvironment(b)
+    }
   }
 
   /**
@@ -95,10 +123,19 @@ class FlinkILoop(
     new File(tmpDirBase, "scala_shell_commands.jar")
   }
 
-  private val packageImports = Seq[String](
-    "org.apache.flink.api.scala._",
-    "org.apache.flink.api.common.functions._"
-  )
+  private val packageImports: Seq[String] =
+    streamingMode match {
+      case StreamingMode.BATCH_ONLY =>
+        Seq[String](
+          "org.apache.flink.api.scala._",
+          "org.apache.flink.api.common.functions._")
+      case StreamingMode.STREAMING =>
+        Seq[String](
+          "org.apache.flink.api.scala._",
+          "org.apache.flink.api.common.functions._",
+          "java.util.concurrent.TimeUnit",
+          "import org.apache.flink.streaming.api.windowing.time._")
+    }
 
   override def createInterpreter(): Unit = {
     super.createInterpreter()
@@ -109,7 +146,13 @@ class FlinkILoop(
         intp.interpret("import " + packageImports.mkString(", "))
 
         // set execution environment
-        intp.bind("env", this.scalaEnv)
+        this.scalaEnv match {
+          case s: StreamExecutionEnvironment =>
+            intp.bind("env", this.scalaEnv.asInstanceOf[StreamExecutionEnvironment])
+          case b: ExecutionEnvironment =>
+            intp.bind("env", this.scalaEnv.asInstanceOf[ExecutionEnvironment])
+        }
+
       }
     }
   }
@@ -217,8 +260,21 @@ HINT: You can use print() on a DataSet to print the contents to this shell.
     )
 
   }
+/*
+  def getBatchExecutionEnvironment(): ExecutionEnvironment = {
+    scalaEnv match {
+      case b: ExecutionEnvironment => return b
+      case _ => return null
+    }
+  }
 
+  def getStreamExecutionEnvironment(): StreamExecutionEnvironment = {
+    scalaEnv match {
+      case s: StreamExecutionEnvironment => return s
+      case _ => return null
+    }
+  }
+*/
   def getExternalJars(): Array[String] = externalJars.getOrElse(Array.empty[String])
-
 }
 

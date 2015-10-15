@@ -28,33 +28,80 @@ import org.scalatest.junit.JUnitRunner
 @RunWith(classOf[JUnitRunner])
 class ScalaShellLocalStartupITCase extends FunSuite with Matchers {
 
-    /**
-     * tests flink shell with local setup through startup script in bin folder
-     */
-    test("start flink scala shell with local cluster") {
 
-      val input: String = "val els = env.fromElements(\"a\",\"b\");\n" + "els.print\nError\n:q\n"
-      val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
-      val out: StringWriter = new StringWriter
-      val baos: ByteArrayOutputStream = new ByteArrayOutputStream
-      val oldOut: PrintStream = System.out
-      System.setOut(new PrintStream(baos))
-      val args: Array[String] = Array("local")
+  /**
+   * tests flink shell with local setup through startup script in bin folder
+   */
+  test("start flink scala shell with local cluster") {
 
-      //start flink scala shell
-      FlinkShell.bufferedReader = Some(in);
-      FlinkShell.main(args)
+    val input: String = "val els = env.fromElements(\"a\",\"b\");\n" + "els.print\nError\n:q\n"
+    val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
+    val out: StringWriter = new StringWriter
+    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
+    val oldOut: PrintStream = System.out
+    System.setOut(new PrintStream(baos))
+    val args: Array[String] = Array("local")
 
-      baos.flush()
-      val output: String = baos.toString
-      System.setOut(oldOut)
+    //start flink scala shell
+    FlinkShell.bufferedReader = Some(in);
+    FlinkShell.main(args)
 
-      output should include("Job execution switched to status FINISHED.")
-      output should include("a\nb")
+    baos.flush()
+    val output: String = baos.toString
+    System.setOut(oldOut)
 
-      output should not include "Error"
-      output should not include "ERROR"
-      output should not include "Exception"
-      output should not include "failed"
-    }
+    output should include("Job execution switched to status FINISHED.")
+    output should include("a\nb")
+
+    output should not include "Error"
+    output should not include "ERROR"
+    output should not include "Exception"
+    output should not include "failed"
+  }
+
+  /**
+   * tests shell in local setup with streaming
+   */
+  test("WordCount in Shell Streaming") {
+    val input = """
+        val text = env.fromElements("To be, or not to be,--that is the question:--",
+        "Whether 'tis nobler in the mind to suffer",
+        "The slings and arrows of outrageous fortune",
+        "Or to take arms against a sea of troubles,")
+
+        val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.keyBy(0).sum(1)
+        val result = counts.print()
+        env.execute()
+        :q
+                """.stripMargin
+
+
+    val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
+    val out: StringWriter = new StringWriter
+    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
+    val oldOut: PrintStream = System.out
+    System.setOut(new PrintStream(baos))
+    val args: Array[String] = Array("local","-s")
+
+    //start flink scala shell
+    FlinkShell.bufferedReader = Some(in);
+    FlinkShell.main(args)
+
+    baos.flush()
+    val output: String = baos.toString
+    System.setOut(oldOut)
+
+
+    output should include("(a,1)")
+    output should include("(whether,1)")
+    output should include("(to,4)")
+    output should include("(arrows,1)")
+
+    output should not include "failed"
+    output should not include "error"
+    output should not include "Exception"
+  }
+
+
+
 }
