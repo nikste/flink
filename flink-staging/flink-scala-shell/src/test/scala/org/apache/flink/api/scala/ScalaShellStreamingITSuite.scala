@@ -32,7 +32,7 @@ import scala.tools.nsc.Settings
 import scala.tools.nsc.interpreter.JPrintWriter
 
 @RunWith(classOf[JUnitRunner])
-class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
+class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
   var cluster: Option[ForkableFlinkMiniCluster] = None
   val parallelism = 4
@@ -242,7 +242,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
       new StringReader(
         input + "\n"))
     val out: StringWriter = new StringWriter
-    val jPrintWriter: JPrintWriter = new JPrintWriter(out);
+    val jPrintWriter: JPrintWriter = new JPrintWriter(out)
 
     val baos: ByteArrayOutputStream = new ByteArrayOutputStream
     val oldOut: PrintStream = System.out
@@ -252,7 +252,8 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
       case Some(cl) =>
         val arg = Array("remote",
           cl.hostname,
-          Integer.toString(cl.getLeaderRPCPort))
+          Integer.toString(cl.getLeaderRPCPort),
+          "-s")
         (cl, arg)
       case None =>
         fail("Cluster creation failed!")
@@ -280,7 +281,7 @@ class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     val cl = TestBaseUtils.startCluster(
       1,
       parallelism,
-      StreamingMode.BATCH_ONLY,
+      StreamingMode.STREAMING,
       false,
       false,
       false)

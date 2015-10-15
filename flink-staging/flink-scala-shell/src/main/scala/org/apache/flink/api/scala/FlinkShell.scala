@@ -18,7 +18,7 @@
 
 package org.apache.flink.api.scala
 
-import java.io.{StringWriter, BufferedReader}
+import java.io.{PrintWriter, StringWriter, BufferedReader}
 
 import org.apache.flink.api.common.ExecutionMode
 
@@ -37,7 +37,8 @@ object FlinkShell {
     val UNDEFINED, LOCAL, REMOTE = Value
   }
 
-  var bufferedReader: Option[BufferedReader] = None
+  // you can specify custom reader and writer for testing.
+  var readWriter: (Option[BufferedReader],Option[JPrintWriter]) = (None,None)
 
   def main(args: Array[String]) {
 
@@ -135,19 +136,18 @@ object FlinkShell {
     try {
       // custom shell
       val repl: FlinkILoop =
-        bufferedReader match {
+        readWriter match {
 
-          case Some(br) =>
-            val out = new StringWriter()
+          case (Some(br),Some(jp)) =>
             new FlinkILoop(
               host,
               port,
               streamingMode,
               externalJars,
-              bufferedReader,
-              new JPrintWriter(out))
+              br,
+              jp)
 
-          case None =>
+          case (None,None) =>
             new FlinkILoop(host, port, streamingMode, externalJars)
         }
 

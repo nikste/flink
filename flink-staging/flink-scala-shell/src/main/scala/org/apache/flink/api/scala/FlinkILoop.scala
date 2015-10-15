@@ -134,7 +134,7 @@ class FlinkILoop(
           "org.apache.flink.api.scala._",
           "org.apache.flink.api.common.functions._",
           "java.util.concurrent.TimeUnit",
-          "import org.apache.flink.streaming.api.windowing.time._")
+          "org.apache.flink.streaming.api.windowing.time._")
     }
 
   override def createInterpreter(): Unit = {
