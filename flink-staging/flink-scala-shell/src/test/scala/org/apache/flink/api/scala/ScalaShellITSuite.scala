@@ -22,15 +22,20 @@ import java.io._
 import java.util.concurrent.TimeUnit
 
 import org.apache.flink.runtime.StreamingMode
-import org.apache.flink.test.util.{ForkableFlinkMiniCluster, TestBaseUtils, TestEnvironment}
+import org.apache.flink.test.util.{TestEnvironment, ForkableFlinkMiniCluster, TestBaseUtils}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.tools.nsc.Settings
+import scala.tools.nsc.interpreter.JPrintWriter
 
-class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
+@RunWith(classOf[JUnitRunner])
+class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
+
+  var cluster: Option[ForkableFlinkMiniCluster] = None
+  val parallelism = 4
 
   test("Prevent re-creation of environment") {
 
@@ -50,7 +55,6 @@ class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterA
     val input: String =
       """
         val initial = env.fromElements(0)
-
         val count = initial.iterate(10000) { iterationInput: DataSet[Int] =>
           val result = iterationInput.map { i =>
             val x = Math.random()
@@ -77,7 +81,6 @@ class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterA
         "Whether 'tis nobler in the mind to suffer",
         "The slings and arrows of outrageous fortune",
         "Or to take arms against a sea of troubles,")
-
         val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.groupBy(0).sum(1)
         val result = counts.print()
       """.stripMargin
@@ -116,14 +119,11 @@ class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterA
     val input =
       """
       case class WC(word: String, count: Int)
-
       val wordCounts = env.fromElements(
         new WC("hello", 1),
         new WC("world", 2),
         new WC("world", 8))
-
       val reduced = wordCounts.groupBy(0).sum(1)
-
       reduced.print()
       """.stripMargin
 
@@ -154,6 +154,7 @@ class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterA
       val filename: String = listOfFiles(i).getName
       if (!filename.contains("test") && !filename.contains("original") && filename.contains(
         ".jar")) {
+        println("ive found file:" + listOfFiles(i).getAbsolutePath)
         externalJar = listOfFiles(i).getAbsolutePath
       }
     }
@@ -191,13 +192,19 @@ class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterA
 
     val repl = externalJars match {
       case Some(ej) => new FlinkILoop(
-        host, port, StreamingMode.BATCH_ONLY,
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
         Option(Array(ej)),
-        in, new PrintWriter(out))
+        in,
+        new PrintWriter(out))
 
       case None => new FlinkILoop(
-        host,port, StreamingMode.BATCH_ONLY,
-        in, new PrintWriter(out))
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
+        in,
+        new PrintWriter(out))
     }
 
     repl.settings = new Settings()
@@ -223,8 +230,51 @@ class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterA
     out.toString + stdout
   }
 
-  var cluster: Option[ForkableFlinkMiniCluster] = None
-  val parallelism = 4
+  /**
+   * tests flink shell startup with remote cluster (starts cluster internally)
+   */
+  test("start flink scala shell with remote cluster") {
+
+    val input: String = "val els = env.fromElements(\"a\",\"b\");\n" +
+      "els.print\nError\n:q\n"
+
+    val in: BufferedReader = new BufferedReader(
+      new StringReader(
+        input + "\n"))
+    val out: StringWriter = new StringWriter
+    val jPrintWriter: JPrintWriter = new JPrintWriter(out);
+
+    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
+    val oldOut: PrintStream = System.out
+    System.setOut(new PrintStream(baos))
+
+    val (c, args) = cluster match{
+      case Some(cl) =>
+        val arg = Array("remote",
+          cl.hostname,
+          Integer.toString(cl.getLeaderRPCPort))
+        (cl, arg)
+      case None =>
+        fail("Cluster creation failed!")
+    }
+
+    //start scala shell with initialized
+    // buffered reader for testing
+    FlinkShell.readWriter = (Some(in),Some(jPrintWriter))
+    FlinkShell.main(args)
+    baos.flush()
+
+    val output: String = baos.toString
+    System.setOut(oldOut)
+
+    output should include("Job execution switched to status FINISHED.")
+    output should include("a\nb")
+
+    output should not include "Error"
+    output should not include "ERROR"
+    output should not include "Exception"
+    output should not include "failed"
+  }
 
   override def beforeAll(): Unit = {
     val cl = TestBaseUtils.startCluster(
@@ -242,3 +292,4 @@ class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterA
     cluster.foreach(c => TestBaseUtils.stopCluster(c, new FiniteDuration(1000, TimeUnit.SECONDS)))
   }
 }
+

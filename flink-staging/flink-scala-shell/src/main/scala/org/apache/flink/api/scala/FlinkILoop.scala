@@ -152,24 +152,49 @@ class FlinkILoop(
     new File(tmpDirBase, "scala_shell_commands.jar")
   }
 
-  private val packageImports = Seq[String](
-    "org.apache.flink.core.fs._",
-    "org.apache.flink.core.fs.local._",
-    "org.apache.flink.api.common.io._",
-    "org.apache.flink.api.common.aggregators._",
-    "org.apache.flink.api.common.accumulators._",
-    "org.apache.flink.api.common.distributions._",
-    "org.apache.flink.api.common.operators._",
-    "org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint",
-    "org.apache.flink.api.common.functions._",
-    "org.apache.flink.api.java.io._",
-    "org.apache.flink.api.java.aggregation._",
-    "org.apache.flink.api.java.functions._",
-    "org.apache.flink.api.java.operators._",
-    "org.apache.flink.api.java.sampling._",
-    "org.apache.flink.api.scala._",
-    "org.apache.flink.api.scala.utils._"
-  )
+  private val packageImports =
+    streaming match {
+      case StreamingMode.BATCH_ONLY => Seq[String](
+      "org.apache.flink.core.fs._",
+      "org.apache.flink.core.fs.local._",
+      "org.apache.flink.api.common.io._",
+      "org.apache.flink.api.common.aggregators._",
+      "org.apache.flink.api.common.accumulators._",
+      "org.apache.flink.api.common.distributions._",
+      "org.apache.flink.api.common.operators._",
+      "org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint",
+      "org.apache.flink.api.common.functions._",
+      "org.apache.flink.api.java.io._",
+      "org.apache.flink.api.java.aggregation._",
+      "org.apache.flink.api.java.functions._",
+      "org.apache.flink.api.java.operators._",
+      "org.apache.flink.api.java.sampling._",
+      "org.apache.flink.api.scala._",
+      "org.apache.flink.api.scala.utils._"
+    )
+      case StreamingMode.STREAMING => Seq[String](
+       "org.apache.flink.core.fs._",
+      "org.apache.flink.core.fs.local._",
+      "org.apache.flink.api.common.io._",
+      "org.apache.flink.api.common.aggregators._",
+      "org.apache.flink.api.common.accumulators._",
+      "org.apache.flink.api.common.distributions._",
+      "org.apache.flink.api.common.operators._",
+      "org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint",
+      "org.apache.flink.api.common.functions._",
+      "org.apache.flink.api.java.io._",
+      "org.apache.flink.api.java.aggregation._",
+      "org.apache.flink.api.java.functions._",
+      "org.apache.flink.api.java.operators._",
+      "org.apache.flink.api.java.sampling._",
+      "org.apache.flink.api.scala._",
+      "org.apache.flink.api.scala.utils._",
+      "org.apache.flink.streaming._",
+      "org.apache.flink.streaming.connectors.rabbitmq._",
+      "org.apache.flink.contrib.streaming.scala.DataStreamUtils._",
+      "org.apache.flink.streaming.util.serialization.SimpleStringSchema;"
+      )
+    }
 
   override def createInterpreter(): Unit = {
     super.createInterpreter()
@@ -178,9 +203,12 @@ class FlinkILoop(
       intp.beQuietDuring {
         // import dependencies
         intp.interpret("import " + packageImports.mkString(", "))
-
-        // set execution environment
-        intp.bind("env", this.scalaEnv)
+        streaming match {
+          case StreamingMode.STREAMING =>
+            intp.bind("env", this.scalaEnv.asInstanceOf[StreamExecutionEnvironment])
+          case StreamingMode.BATCH_ONLY =>
+            intp.bind("env", this.scalaEnv.asInstanceOf[ExecutionEnvironment])
+        }
       }
     }
   }
@@ -288,21 +316,7 @@ HINT: You can use print() on a DataSet to print the contents to this shell.
 
   }
 
-  def getBatchExecutionEnvironment(): ExecutionEnvironment = {
-    scalaEnv match {
-      case b: ExecutionEnvironment => return b
-      case _ => return null
-    }
-  }
-
-  def getStreamExecutionEnvironment(): StreamExecutionEnvironment = {
-    scalaEnv match {
-      case s: StreamExecutionEnvironment => return s
-      case _ => return null
-    }
-  }
-
-
   def getExternalJars(): Array[String] = externalJars.getOrElse(Array.empty[String])
+
 }
 

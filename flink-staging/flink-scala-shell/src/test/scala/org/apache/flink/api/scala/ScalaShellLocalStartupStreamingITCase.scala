@@ -21,46 +21,14 @@ package org.apache.flink.api.scala
 import java.io._
 
 import org.junit.runner.RunWith
-import org.scalatest.{Matchers, FunSuite}
 import org.scalatest.junit.JUnitRunner
+import org.scalatest.{Matchers, FunSuite}
 
-import scala.tools.nsc.interpreter.JPrintWriter
+import scala.tools.nsc.interpreter._
 
 
 @RunWith(classOf[JUnitRunner])
-class ScalaShellLocalStartupITCase extends FunSuite with Matchers {
-
-  /**
-   * tests flink shell with local setup through startup script in bin folder
-   */
-  test("start flink scala shell with local cluster") {
-
-    val input: String = "val els = env.fromElements(\"a\",\"b\");\n" + "els.print\nError\n:q\n"
-    val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
-    val out: StringWriter = new StringWriter
-    val jPrintWriter: JPrintWriter = new JPrintWriter(out)
-
-    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
-    val oldOut: PrintStream = System.out
-    System.setOut(new PrintStream(baos))
-    val args: Array[String] = Array("local")
-
-    //start flink scala shell
-    FlinkShell.readWriter = (Some(in),Some(jPrintWriter));
-    FlinkShell.main(args)
-
-    baos.flush()
-    val output: String = baos.toString
-    System.setOut(oldOut)
-
-    output should include("Job execution switched to status FINISHED.")
-    output should include("a\nb")
-
-    output should not include "Error"
-    output should not include "ERROR"
-    output should not include "Exception"
-    output should not include "failed"
-  }
+class ScalaShellLocalStartupStreamingITCase extends FunSuite with Matchers {
 
   /**
    * tests shell in local setup with streaming
@@ -76,32 +44,6 @@ class ScalaShellLocalStartupITCase extends FunSuite with Matchers {
         env.execute()
 :q
                 """.stripMargin
-    /*
-      val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
-      val out: StringWriter = new StringWriter
-      val jPrintWriter: JPrintWriter = new JPrintWriter(out)
-      val baos: ByteArrayOutputStream = new ByteArrayOutputStream
-      val oldOut: PrintStream = System.out
-      //System.setOut(new PrintStream(baos))
-      val args: Array[String] = Array("local","-s")
-      //start flink scala shell
-      //val outwriter = new PrintWriter(out)
-      FlinkShell.readWriter = (Some(in),Some(jPrintWriter))
-      FlinkShell.main(args)
-      baos.flush()
-      val output: String = baos.toString + out.toString
-      //System.setOut(oldOut)
-      System.out.println("printing output")
-      System.out.println(output)
-      println(" ")
-      println("testing:")
-      //output should include("(of,2)")
-      output should include("(whether,1)")
-      output should include("(to,4)")
-      output should include("(arrows,1)")
-      output should not include "failed"
-      output should not include "error"
-      output should not include "Exception"*/
 
     val in: BufferedReader = new BufferedReader(
       new StringReader(

@@ -22,27 +22,68 @@ import java.io._
 import java.util.concurrent.TimeUnit
 
 import org.apache.flink.runtime.StreamingMode
-import org.apache.flink.test.util.{TestEnvironment, TestBaseUtils, ForkableFlinkMiniCluster, FlinkTestBase}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfter, FunSuite, Matchers}
+import org.apache.flink.test.util.{TestEnvironment, ForkableFlinkMiniCluster, TestBaseUtils}
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.tools.nsc.Settings
+import scala.tools.nsc.interpreter.JPrintWriter
 
+@RunWith(classOf[JUnitRunner])
 class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
-  
+  var cluster: Option[ForkableFlinkMiniCluster] = None
+  val parallelism = 4
 
-  test("WordCount in Shell Streaming") {
-    val input = """
+  test("Prevent re-creation of environment") {
+
+    val input: String =
+      """
+        val env = ExecutionEnvironment.getExecutionEnvironment
+      """.stripMargin
+
+    val output: String = processInShell(input)
+
+    output should include("UnsupportedOperationException: Execution Environment is already " +
+      "defined for this shell")
+  }
+
+  test("Iteration test with iterative Pi example") {
+
+    val input: String =
+      """
+        val initial = env.fromElements(0)
+        val count = initial.iterate(10000) { iterationInput: DataSet[Int] =>
+          val result = iterationInput.map { i =>
+            val x = Math.random()
+            val y = Math.random()
+            i + (if (x * x + y * y < 1) 1 else 0)
+          }
+          result
+        }
+        val result = count map { c => c / 10000.0 * 4 }
+        result.collect()
+      """.stripMargin
+
+    val output: String = processInShell(input)
+
+    output should not include "failed"
+    output should not include "error"
+    output should not include "Exception"
+  }
+
+  test("WordCount in Shell") {
+    val input =
+      """
         val text = env.fromElements("To be, or not to be,--that is the question:--",
         "Whether 'tis nobler in the mind to suffer",
         "The slings and arrows of outrageous fortune",
         "Or to take arms against a sea of troubles,")
-
         val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.groupBy(0).sum(1)
         val result = counts.print()
-        env.execute()
-                """.stripMargin
+      """.stripMargin
 
     val output = processInShell(input)
 
@@ -50,43 +91,83 @@ class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAf
     output should not include "error"
     output should not include "Exception"
 
-    //    some of the words that should be included
+    // some of the words that should be included
     output should include("(a,1)")
     output should include("(whether,1)")
     output should include("(to,4)")
     output should include("(arrows,1)")
   }
 
-  test("Submit external library with streaming") {
+  test("Sum 1..10, should be 55") {
+    val input =
+      """
+        val input: DataSet[Int] = env.fromElements(0,1,2,3,4,5,6,7,8,9,10)
+        val reduced = input.reduce(_+_)
+        reduced.print
+      """.stripMargin
 
-    val input : String =
+    val output = processInShell(input)
+
+    output should not include "failed"
+    output should not include "error"
+    output should not include "Exception"
+
+    output should include("55")
+  }
+
+  test("WordCount in Shell with custom case class") {
+    val input =
+      """
+      case class WC(word: String, count: Int)
+      val wordCounts = env.fromElements(
+        new WC("hello", 1),
+        new WC("world", 2),
+        new WC("world", 8))
+      val reduced = wordCounts.groupBy(0).sum(1)
+      reduced.print()
+      """.stripMargin
+
+    val output = processInShell(input)
+
+    output should not include "failed"
+    output should not include "error"
+    output should not include "Exception"
+
+    output should include("WC(hello,1)")
+    output should include("WC(world,10)")
+  }
+
+  test("Submit external library") {
+    val input =
       """
         import org.apache.flink.ml.math._
         val denseVectors = env.fromElements(DenseVector(1.0, 2.0, 3.0))
         denseVectors.print()
-        env.execute("hello")
-      """
+      """.stripMargin
 
     // find jar file that contains the ml code
-    var externalJar : String = ""
-    var folder : File = new File("../flink-ml/target/");
-    var listOfFiles : Array[File] = folder.listFiles();
-    for(i <- 0 to listOfFiles.length - 1){
-      var filename : String = listOfFiles(i).getName();
-      if(!filename.contains("test") && !filename.contains("original") && filename.contains(".jar")){
+    var externalJar = ""
+    val folder = new File("../flink-ml/target/")
+    val listOfFiles = folder.listFiles()
+
+    for (i <- listOfFiles.indices) {
+      val filename: String = listOfFiles(i).getName
+      if (!filename.contains("test") && !filename.contains("original") && filename.contains(
+        ".jar")) {
+        println("ive found file:" + listOfFiles(i).getAbsolutePath)
         externalJar = listOfFiles(i).getAbsolutePath
       }
     }
 
     assert(externalJar != "")
 
-    val output : String = processInShell(input,Option(externalJar))
+    val output: String = processInShell(input, Option(externalJar))
 
     output should not include "failed"
     output should not include "error"
     output should not include "Exception"
 
-    output should include( "\nDenseVector(1.0, 2.0, 3.0)")
+    output should include("\nDenseVector(1.0, 2.0, 3.0)")
   }
 
   /**
@@ -94,8 +175,7 @@ class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAf
    * @param input commands to be processed in the shell
    * @return output of shell
    */
-  def processInShell(input : String, externalJars : Option[String] = None): String ={
-
+  def processInShell(input: String, externalJars: Option[String] = None): String = {
     val in = new BufferedReader(new StringReader(input + "\n"))
     val out = new StringWriter()
     val baos = new ByteArrayOutputStream()
@@ -110,17 +190,21 @@ class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAf
       case _ => throw new RuntimeException("Test cluster not initialized.")
     }
 
-    var repl : FlinkILoop= null
-
-    externalJars match {
-      case Some(ej) => repl = new FlinkILoop(
-        host, port, StreamingMode.STREAMING,
+    val repl = externalJars match {
+      case Some(ej) => new FlinkILoop(
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
         Option(Array(ej)),
-        in, new PrintWriter(out))
+        in,
+        new PrintWriter(out))
 
-      case None => repl = new FlinkILoop(
-        host,port, StreamingMode.STREAMING,
-        in,new PrintWriter(out))
+      case None => new FlinkILoop(
+        host,
+        port,
+        StreamingMode.BATCH_ONLY,
+        in,
+        new PrintWriter(out))
     }
 
     repl.settings = new Settings()
@@ -146,25 +230,67 @@ class ScalaShellStreamingITSuite extends FunSuite with Matchers with BeforeAndAf
     out.toString + stdout
   }
 
-  var cluster: Option[ForkableFlinkMiniCluster] = None
-  val parallelism = 4
+  /**
+   * tests flink shell startup with remote cluster (starts cluster internally)
+   */
+  test("start flink scala shell with remote cluster") {
+
+    val input: String = "val els = env.fromElements(\"a\",\"b\");\n" +
+      "els.print\nError\n:q\n"
+
+    val in: BufferedReader = new BufferedReader(
+      new StringReader(
+        input + "\n"))
+    val out: StringWriter = new StringWriter
+    val jPrintWriter: JPrintWriter = new JPrintWriter(out)
+
+    val baos: ByteArrayOutputStream = new ByteArrayOutputStream
+    val oldOut: PrintStream = System.out
+    System.setOut(new PrintStream(baos))
+
+    val (c, args) = cluster match{
+      case Some(cl) =>
+        val arg = Array("remote",
+          cl.hostname,
+          Integer.toString(cl.getLeaderRPCPort),
+          "-s")
+        (cl, arg)
+      case None =>
+        fail("Cluster creation failed!")
+    }
+
+    //start scala shell with initialized
+    // buffered reader for testing
+    FlinkShell.readWriter = (Some(in),Some(jPrintWriter))
+    FlinkShell.main(args)
+    baos.flush()
+
+    val output: String = baos.toString
+    System.setOut(oldOut)
+
+    output should include("Job execution switched to status FINISHED.")
+    output should include("a\nb")
+
+    output should not include "Error"
+    output should not include "ERROR"
+    output should not include "Exception"
+    output should not include "failed"
+  }
 
   override def beforeAll(): Unit = {
-    //TODO: CHECK STREAMING MODE TESTS HERE!!
-    val cl = TestBaseUtils.startCluster(1,
+    val cl = TestBaseUtils.startCluster(
+      1,
       parallelism,
       StreamingMode.STREAMING,
       false,
       false,
       false)
-    
-    val clusterEnvironment = new TestEnvironment(cl, parallelism)
-    clusterEnvironment.setAsContext()
 
     cluster = Some(cl)
   }
 
   override def afterAll(): Unit = {
-    cluster.map(c => TestBaseUtils.stopCluster(c, new FiniteDuration(1000, TimeUnit.SECONDS)))
+    cluster.foreach(c => TestBaseUtils.stopCluster(c, new FiniteDuration(1000, TimeUnit.SECONDS)))
   }
 }
+

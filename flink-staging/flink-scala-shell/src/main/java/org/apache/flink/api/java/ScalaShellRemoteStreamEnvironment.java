@@ -28,8 +28,9 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironmentFact
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -64,7 +65,7 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 	 * @throws ProgramInvocationException
 	 */
 	@Override
-	public JobExecutionResult execute() throws ProgramInvocationException {
+	public JobExecutionResult execute() throws Exception {
 		prepareJars();
 		return(super.execute());
 		/*JobGraph jobGraph = streamGraph.getJobGraph();
@@ -75,7 +76,7 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 	 * prepares the user generated code from the shell to be shipped to JobManager
 	 * (i.e. save it into jarFiles of this object)
 	 */
-	private void prepareJars(){
+	private void prepareJars() throws MalformedURLException {
 		String jarFile = flinkILoop.writeFilesToDisk().getAbsolutePath();
 
 		// get "external jars, and add the shell command jar, pass to executor
@@ -91,14 +92,15 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 		String[] alljarsArr = new String[alljars.size()];
 		alljarsArr = alljars.toArray(alljarsArr);
 		for (String jarF : alljarsArr) {
-			File file = new File(jarF);
+			URL fileUrl = new URL("file://" + jarF);
+			System.out.println("sending:" + fileUrl);
 			try {
-				JobWithJars.checkJarFile( file);
+				JobWithJars.checkJarFile(fileUrl);
 			}
 			catch (IOException e) {
-				throw new RuntimeException("Problem with jar file " + file.getAbsolutePath(), e);
+				throw new RuntimeException("Problem with jar file " + fileUrl, e);
 			}
-			jarFiles.add(file);
+			jarFiles.add(fileUrl);
 		}
 	}
 	/**
@@ -109,10 +111,19 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 	 */
 	@Override
 	public JobExecutionResult execute(String jobName) throws ProgramInvocationException {
-		prepareJars();
-		return(super.execute(jobName));
-		/*JobGraph jobGraph = streamGraph.getJobGraph(jobName);
-		return executeRemotely(jobGraph);*/
+		try {
+			prepareJars();
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+		}
+
+		JobExecutionResult jer = null;
+		try {
+			jer = super.execute(jobName);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return(jer);
 	}
 
 	public void setAsContext() {
@@ -126,4 +137,23 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 		initializeContextEnvironment(factory);
 	}
 
+
+	public static void disableAllContextAndOtherEnvironments() {
+
+		// we create a context environment that prevents the instantiation of further
+		// context environments. at the same time, setting the context environment prevents manual
+		// creation of local and remote environments
+		StreamExecutionEnvironmentFactory factory = new StreamExecutionEnvironmentFactory() {
+			@Override
+			public StreamExecutionEnvironment createExecutionEnvironment() {
+				throw new UnsupportedOperationException("Execution Environment is already defined" +
+						" for this shell.");
+			}
+		};
+		initializeContextEnvironment(factory);
+	}
+
+	public static void resetContextEnvironments() {
+		StreamExecutionEnvironment.resetContextEnvironment();
+	}
 }
