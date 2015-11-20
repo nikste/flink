@@ -20,7 +20,6 @@ package org.apache.flink.streaming.api.environment;
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,15 +34,13 @@ import org.apache.flink.client.program.JobWithJars;
 import org.apache.flink.client.program.ProgramInvocationException;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.core.fs.Path;
-import org.apache.flink.runtime.jobgraph.JobGraph;
 
 import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
-	
+
 	private static final Logger LOG = LoggerFactory.getLogger(RemoteStreamEnvironment.class);
 
 	/** The hostname of the JobManager */
@@ -57,14 +54,14 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 
 	/** The jar files that need to be attached to each job */
 	public final List<URL> jarFiles;
-	
+
 	/** The classpaths that need to be attached to each job */
 	private final List<URL> globalClasspaths;
 
 	/**
 	 * Creates a new RemoteStreamEnvironment that points to the master
 	 * (JobManager) described by the given host name and port.
-	 * 
+	 *
 	 * @param host
 	 *            The host name or address of the master (JobManager), where the
 	 *            program should be executed.
@@ -122,9 +119,9 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 	 *            cluster. If the program uses user-defined functions,
 	 *            user-defined input formats, or any libraries, those must be
 	 *            provided in the JAR files.
-	 * @param globalClasspaths 
-	 *            The paths of directories and JAR files that are added to each user code 
-	 *            classloader on all nodes in the cluster. Note that the paths must specify a 
+	 * @param globalClasspaths
+	 *            The paths of directories and JAR files that are added to each user code
+	 *            classloader on all nodes in the cluster. Note that the paths must specify a
 	 *            protocol (e.g. file://) and be accessible on all nodes (e.g. by means of a NFS share).
 	 *            The protocol must be supported by the {@link java.net.URLClassLoader}.
 	 */
@@ -134,7 +131,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 					"The RemoteEnvironment cannot be used when submitting a program through a client, " +
 							"or running in a TestEnvironment context.");
 		}
-		
+
 		if (host == null) {
 			throw new NullPointerException("Host must not be null.");
 		}
@@ -166,7 +163,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 	}
 
 	@Override
-	public JobExecutionResult execute(String jobName) throws ProgramInvocationException, MalformedURLException {
+	public JobExecutionResult execute(String jobName) throws ProgramInvocationException {
 		StreamGraph streamGraph = getStreamGraph();
 		streamGraph.setJobName(jobName);
 		transformations.clear();
@@ -175,31 +172,22 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 
 	/**
 	 * Executes the remote job.
-	 * 
+	 *
 	 * @param streamGraph
 	 *            Stream Graph to execute
 	 * @return The result of the job execution, containing elapsed time and accumulators.
 	 */
-	public JobExecutionResult executeRemotely(JobGraph jobGraph) throws ProgramInvocationException {
+	private JobExecutionResult executeRemotely(StreamGraph streamGraph) throws ProgramInvocationException {
 		if (LOG.isInfoEnabled()) {
 			LOG.info("Running remotely at {}:{}", host, port);
 		}
 
-		for (URL jarFile : jarFiles) {
-			try {
-				jobGraph.addJar(new Path(jarFile.toURI()));
-			} catch (URISyntaxException e) {
-				throw new ProgramInvocationException("URL is invalid", e);
-			}
-		}
-
 		ClassLoader usercodeClassLoader = JobWithJars.buildUserCodeClassLoader(jarFiles, globalClasspaths,
-			getClass().getClassLoader());
-		
+				getClass().getClassLoader());
+
 		Configuration configuration = new Configuration();
-		configuration.addAll(jobGraph.getJobConfiguration());
 		configuration.addAll(this.config);
-		
+
 		configuration.setString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, host);
 		configuration.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, port);
 
