@@ -20,20 +20,21 @@ package org.apache.flink.api.scala
 
 import java.io._
 
-import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest.{Matchers, FunSuite}
+import org.apache.flink.api.scala.FlinkShell
+import org.apache.flink.util.TestLogger
+import org.junit.{Assert, Test}
+import org.slf4j.{LoggerFactory, Logger}
 
 import scala.tools.nsc.interpreter._
 
+class ScalaShellLocalStartupStreamingITCase extends TestLogger {
 
-@RunWith(classOf[JUnitRunner])
-class ScalaShellLocalStartupStreamingITCase extends FunSuite with Matchers {
-
-  /**
-   * tests shell in local setup with streaming
-   */
-  test("WordCount in Shell Streaming") {
+    private val LOG: Logger = LoggerFactory.getLogger(classOf[ScalaShellLocalStartupStreamingITCase])
+    /**
+    * tests flink shell with local setup through startup script in bin folder
+    */
+  @Test
+  def testLocalCluster: Unit = {
     val input = """
         val text = env.fromElements("To be, or not to be,--that is the question:--",
         "Whether 'tis nobler in the mind to suffer",
@@ -42,39 +43,40 @@ class ScalaShellLocalStartupStreamingITCase extends FunSuite with Matchers {
         val counts = text.flatMap { _.toLowerCase.split("\\W+") }.map { (_, 1) }.keyBy(0).sum(1)
         val result = counts.print()
         env.execute()
-:q
-                """.stripMargin
+        :q
+        """.stripMargin
 
-    val in: BufferedReader = new BufferedReader(
-      new StringReader(
-        input + "\n"))
+    val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
     val out: StringWriter = new StringWriter
-    val jPrintWriter: JPrintWriter = new JPrintWriter(out);
-
     val baos: ByteArrayOutputStream = new ByteArrayOutputStream
     val oldOut: PrintStream = System.out
     System.setOut(new PrintStream(baos))
+    val args: Array[String] = Array("local","-s")
 
-    val args: Array[String] = Array[String]("local","-s")
-
-    //start scala shell with initialized
-    // buffered reader for testing
+    val jPrintWriter: JPrintWriter = new JPrintWriter(out)
+    //start flink scala shell
     FlinkShell.readWriter = (Some(in),Some(jPrintWriter))
     FlinkShell.main(args)
+
     baos.flush()
-
     val output: String = baos.toString
-
     System.setOut(oldOut)
 
-    output should include("(of,2)")
-    output should include("(whether,1)")
-    output should include("(to,4)")
-    output should include("(arrows,1)")
+    println(output)
+    FlinkShell.cluster match{
+      case Some(c) =>
+          LOG.info("cluster:" + c.running)
+      case _ =>
+          LOG.info("cluster gone!")
+    }
 
-    output should not include "failed"
-    output should not include "error"
-    output should not include "Exception"
+    Assert.assertTrue(output.contains("(of,2)"))
+    Assert.assertTrue(output.contains("(whether,1)"))
+    Assert.assertTrue(output.contains("(to,4)"))
+    Assert.assertTrue(output.contains("(arrows,1)"))
+
+    Assert.assertFalse(output.contains("failed"))
+    Assert.assertFalse(output.contains("error"))
+    Assert.assertFalse(output.contains("Exception"))
   }
 }
-

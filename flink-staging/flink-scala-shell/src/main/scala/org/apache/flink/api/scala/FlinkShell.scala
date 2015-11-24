@@ -37,6 +37,7 @@ object FlinkShell {
     val UNDEFINED, LOCAL, REMOTE = Value
   }
 
+  var cluster: Option[LocalFlinkMiniCluster] = None;
   // you can specify custom reader and writer for testing.
   var readWriter: (Option[BufferedReader],Option[JPrintWriter]) = (None,None)
 
@@ -132,7 +133,6 @@ object FlinkShell {
           println("[local | remote <host> <port>]")
           return
       }
-
     try {
       // custom shell
       val repl: FlinkILoop =
@@ -154,14 +154,19 @@ object FlinkShell {
       val settings = new Settings()
 
       settings.usejavacp.value = true
+      settings.Yreplsync.value = true
 
       // start scala interpreter shell
       repl.process(settings)
     } finally {
       cluster match {
-        case Some(c) => c.stop()
+        case Some(c) =>
+          println("still running?:" + c.running)
+          c.stop()
+          println("still running?:" + c.running)
         case None =>
       }
+
     }
 
     println(" good bye ..")
