@@ -33,7 +33,6 @@ public final class DataStreamUtils {
 
 	/**
 	 * Returns an iterator to iterate over the elements of the DataStream.
-	 *
 	 * @return The iterator
 	 */
 	public static <OUT> Iterator<OUT> collect(DataStream<OUT> stream) {
@@ -43,9 +42,9 @@ public final class DataStreamUtils {
 		//Find out what IP of us should be given to CollectSink, that it will be able to connect to
 		StreamExecutionEnvironment env = stream.getExecutionEnvironment();
 		InetAddress clientAddress;
-		if (env instanceof RemoteStreamEnvironment) {
-			String host = ((RemoteStreamEnvironment) env).getHost();
-			int port = ((RemoteStreamEnvironment) env).getPort();
+		if(env instanceof RemoteStreamEnvironment) {
+			String host = ((RemoteStreamEnvironment)env).getHost();
+			int port = ((RemoteStreamEnvironment)env).getPort();
 			try {
 				clientAddress = ConnectionUtils.findConnectingAddress(new InetSocketAddress(host, port), 2000, 400);
 			} catch (IOException e) {
@@ -76,7 +75,7 @@ public final class DataStreamUtils {
 		}
 
 		@Override
-		public void run() {
+		public void run(){
 			try {
 				stream.getExecutionEnvironment().execute();
 			} catch (Exception e) {
