@@ -19,7 +19,7 @@ package org.apache.flink.contrib.tweetinputformat.model.tweet;
 
 /**
  * Nullable. An collection of brief user objects (usually only one) indicating users who contributed
- * to the authorship of the {@link Tweet} on behalf of the
+ * to the authorship of the {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} on behalf of the
  * official tweet author.
  */
 public class Contributors {

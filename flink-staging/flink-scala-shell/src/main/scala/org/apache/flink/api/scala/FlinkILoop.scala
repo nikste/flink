@@ -20,36 +20,28 @@ package org.apache.flink.api.scala
 
 import java.io.{BufferedReader, File, FileOutputStream}
 
-import scala.tools.nsc.interpreter._
-
-import org.apache.flink.api.java.{JarHelper, ScalaShellRemoteEnvironment}
-import org.apache.flink.util.AbstractID
-
-import java.io.{BufferedReader, File, FileOutputStream}
-
+import org.apache.flink.api.java.{ScalaShellRemoteStreamEnvironment, JarHelper, ScalaShellRemoteEnvironment}
 import org.apache.flink.runtime.StreamingMode
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
-
-import org.apache.flink.api.java._
 import org.apache.flink.util.AbstractID
 
 import scala.tools.nsc.interpreter._
 
 
 class FlinkILoop(
-    val host : String,
-    val port : Int,
-    val streaming : StreamingMode,
-    val externalJars : Option[Array[String]],
-    in0 : Option[BufferedReader],
-    out0 : JPrintWriter)
+    val host: String,
+    val port: Int,
+    val streaming: StreamingMode,
+    val externalJars: Option[Array[String]],
+    in0: Option[BufferedReader],
+    out0: JPrintWriter)
   extends ILoopCompat(in0, out0) {
 
   def this(host: String,
            port: Int,
            streaming: StreamingMode,
            externalJars: Option[Array[String]],
-           in0: BufferedReader,
+           in0: BufferedReader, 
            out: JPrintWriter){
     this(
       host,
@@ -62,8 +54,8 @@ class FlinkILoop(
 
   def this(host: String,
            port: Int,
-           streaming : StreamingMode,
-           externalJars : Option[Array[String]]){
+           streaming: StreamingMode,
+           externalJars: Option[Array[String]]){
     this(host,
       port,
       streaming,
@@ -72,11 +64,11 @@ class FlinkILoop(
       new JPrintWriter(Console.out, true))
   }
   
-  def this(host : String,
-           port : Int,
-           streaming : StreamingMode,
-           in0 : BufferedReader,
-           out : JPrintWriter){
+  def this(host: String,
+           port: Int,
+           streaming: StreamingMode,
+           in0: BufferedReader,
+           out: JPrintWriter){
     this(host,
       port,
       streaming,
@@ -86,7 +78,7 @@ class FlinkILoop(
   }
 
   // remote environment
-  private var remoteEnv  = {
+  private val remoteEnv  = {
     if(streaming == StreamingMode.STREAMING) {
     // allow creation of environments
     ScalaShellRemoteStreamEnvironment.resetContextEnvironments()
@@ -98,8 +90,6 @@ class FlinkILoop(
     ScalaShellRemoteStreamEnvironment.disableAllContextAndOtherEnvironments()
     
     remoteEnv
-
-    
     }else{
     
     // allow creation of environments
@@ -107,21 +97,20 @@ class FlinkILoop(
     
     // create our environment that submits against the cluster (local or remote)
     val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
-
+    
     // prevent further instantiation of environments
     ScalaShellRemoteEnvironment.disableAllContextAndOtherEnvironments()
     
     remoteEnv
-
     }
   }
 
   // local environment
   val scalaEnv = {
     remoteEnv match{
-      case s : ScalaShellRemoteStreamEnvironment =>
+      case s: ScalaShellRemoteStreamEnvironment =>
         new StreamExecutionEnvironment(s)
-      case b : ScalaShellRemoteEnvironment =>
+      case b: ScalaShellRemoteEnvironment =>
         new ExecutionEnvironment(b)
     }
   }
@@ -138,7 +127,6 @@ class FlinkILoop(
     if (!tmpDir.exists) {
       tmpDir.mkdir
     }
-
     tmpDir
   }
 
@@ -260,6 +248,7 @@ class FlinkILoop(
 
     val jh: JarHelper = new JarHelper
     jh.jarDir(compiledClasses, jarFilePath)
+
     jarFilePath
   }
 
@@ -317,6 +306,5 @@ HINT: You can use print() on a DataSet to print the contents to this shell.
   }
 
   def getExternalJars(): Array[String] = externalJars.getOrElse(Array.empty[String])
-
 }
 

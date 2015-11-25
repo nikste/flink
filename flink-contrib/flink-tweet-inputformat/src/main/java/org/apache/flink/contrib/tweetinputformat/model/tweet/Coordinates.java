@@ -19,7 +19,7 @@ package org.apache.flink.contrib.tweetinputformat.model.tweet;
 
 /**
  * Nullable. Represents the geographic location of this
- * {@link Tweet} as reported by the user or client
+ * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} as reported by the user or client
  * application. The inner coordinates array is formatted as geoJSON longitude first, then latitude)
  */
 public class Coordinates {

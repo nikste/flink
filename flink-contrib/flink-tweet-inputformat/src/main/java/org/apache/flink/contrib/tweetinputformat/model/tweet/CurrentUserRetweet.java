@@ -18,8 +18,8 @@
 package org.apache.flink.contrib.tweetinputformat.model.tweet;
 
 /**
- * Details the {@link Tweet} ID of the user’s own retweet (if
- * existent) of this {@link Tweet}.
+ * Details the {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} ID of the user’s own retweet (if
+ * existent) of this {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet}.
  */
 public class CurrentUserRetweet {
 

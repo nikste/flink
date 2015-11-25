@@ -18,14 +18,13 @@
 package org.apache.flink.contrib.tweetinputformat.model.User;
 
 
-import org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet;
 import org.apache.flink.contrib.tweetinputformat.model.tweet.entities.Entities;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
- * {@link Users} can be anyone or anything. They {@link  Tweet}
+ * {@link Users} can be anyone or anything. They {@link  org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet}
  * , follow, create lists, have a home_timeline, can be mentioned, and can be looked up in bulk.
  */
 public class Users {

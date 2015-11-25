@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.contrib.java.streaming.streaming;
+package org.apache.flink.contrib.java.streaming;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.ForkableFlinkMiniCluster;

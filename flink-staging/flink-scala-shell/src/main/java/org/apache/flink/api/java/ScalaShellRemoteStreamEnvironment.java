@@ -68,10 +68,7 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 	public JobExecutionResult execute() throws Exception {
 		prepareJars();
 		return(super.execute());
-		/*JobGraph jobGraph = streamGraph.getJobGraph();
-		return executeRemotely(jobGraph);*/
 	}
-
 	/**
 	 * prepares the user generated code from the shell to be shipped to JobManager
 	 * (i.e. save it into jarFiles of this object)
@@ -139,7 +136,6 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 
 
 	public static void disableAllContextAndOtherEnvironments() {
-
 		// we create a context environment that prevents the instantiation of further
 		// context environments. at the same time, setting the context environment prevents manual
 		// creation of local and remote environments

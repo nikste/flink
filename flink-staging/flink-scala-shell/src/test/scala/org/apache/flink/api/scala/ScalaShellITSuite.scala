@@ -33,7 +33,7 @@ import scala.tools.nsc.Settings
 import scala.tools.nsc.interpreter.JPrintWriter
 
 @RunWith(classOf[JUnitRunner])
-class ScalaShellBatchITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
+class ScalaShellITSuite extends FunSuite with Matchers with BeforeAndAfterAll {
 
   var cluster: Option[ForkableFlinkMiniCluster] = None
   val parallelism = 4

@@ -23,12 +23,11 @@ import java.io._
 import org.apache.flink.util.TestLogger
 import org.junit.Test
 import org.junit.Assert
-import org.slf4j.{LoggerFactory, Logger}
 
-import scala.tools.nsc.interpreter._
+import scala.tools.nsc.interpreter.JPrintWriter
 
 class ScalaShellLocalStartupITCase extends TestLogger {
-  private val LOG: Logger = LoggerFactory.getLogger(classOf[ScalaShellLocalStartupITCase])
+
   /**
    * tests flink shell with local setup through startup script in bin folder
    */
@@ -40,30 +39,30 @@ class ScalaShellLocalStartupITCase extends TestLogger {
     val cl = Thread.currentThread().getContextClassLoader
     val input: String =
       """
-        import org.apache.flink.api.common.functions.RichMapFunction
-        import org.apache.flink.api.java.io.PrintingOutputFormat
-        import org.apache.flink.api.common.accumulators.IntCounter
-        import org.apache.flink.configuration.Configuration
-
-        val els = env.fromElements("foobar","barfoo")
-        val mapped = els.map{
-         new RichMapFunction[String, String]() {
-            var intCounter: IntCounter = _
-            override def open(conf: Configuration): Unit = {
-            intCounter = getRuntimeContext.getIntCounter("intCounter")
-           }
-
-           def map(element: String): String = {
-             intCounter.add(1)
-             element
-           }
-         }
-        }
-        mapped.output(new PrintingOutputFormat())
-        val executionResult = env.execute("Test Job")
-        System.out.println("IntCounter: " + executionResult.getIntCounterResult("intCounter"))
-
-        :q
+        |import org.apache.flink.api.common.functions.RichMapFunction
+        |import org.apache.flink.api.java.io.PrintingOutputFormat
+        |import org.apache.flink.api.common.accumulators.IntCounter
+        |import org.apache.flink.configuration.Configuration
+        |
+        |val els = env.fromElements("foobar","barfoo")
+        |val mapped = els.map{
+        | new RichMapFunction[String, String]() {
+        |   var intCounter: IntCounter = _
+        |   override def open(conf: Configuration): Unit = {
+        |     intCounter = getRuntimeContext.getIntCounter("intCounter")
+        |   }
+        |
+        |   def map(element: String): String = {
+        |     intCounter.add(1)
+        |     element
+        |   }
+        | }
+        |}
+        |mapped.output(new PrintingOutputFormat())
+        |val executionResult = env.execute("Test Job")
+        |System.out.println("IntCounter: " + executionResult.getIntCounterResult("intCounter"))
+        |
+        |:q
       """.stripMargin
 
     val in: BufferedReader = new BufferedReader(new StringReader(input + "\n"))
@@ -82,13 +81,6 @@ class ScalaShellLocalStartupITCase extends TestLogger {
     val output: String = baos.toString
     System.setOut(oldOut)
 
-    println(output)
-    FlinkShell.cluster match{
-      case Some(c) =>
-        LOG.info("cluster:" + c.running)
-      case _ =>
-        LOG.info("cluster gone!")
-    }
     Assert.assertTrue(output.contains("IntCounter: 2"))
     Assert.assertTrue(output.contains("foobar"))
     Assert.assertTrue(output.contains("barfoo"))
@@ -139,12 +131,6 @@ class ScalaShellLocalStartupITCase extends TestLogger {
     System.setOut(oldOut)
 
     println(output)
-    FlinkShell.cluster match{
-      case Some(c) =>
-        LOG.info("cluster:" + c.running)
-      case _ =>
-        LOG.info("cluster gone!")
-    }
 
     Assert.assertTrue(output.contains("(of,2)"))
     Assert.assertTrue(output.contains("(whether,1)"))

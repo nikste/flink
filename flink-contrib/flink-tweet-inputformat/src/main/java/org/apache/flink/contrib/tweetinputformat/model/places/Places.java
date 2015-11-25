@@ -17,16 +17,13 @@
  */
 package org.apache.flink.contrib.tweetinputformat.model.places;
 
-import org.apache.flink.contrib.tweetinputformat.model.tweet.Coordinates;
-import org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet;
-
 /**
- * {@link Places} are specific, named locations with
- * corresponding geo {@link Coordinates}. They can be attached
- * to {@link Tweet} by specifying a place_id when tweeting. <br>
- * {@link Tweet} associated with places are not necessarily
+ * {@link org.apache.flink.contrib.tweetinputformat.model.places.Places} are specific, named locations with
+ * corresponding geo {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Coordinates}. They can be attached
+ * to {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} by specifying a place_id when tweeting. <br>
+ * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} associated with places are not necessarily
  * issued from that location but could also potentially be about that location.<br>
- * {@link Tweet} can be searched for. Tweets can also be found
+ * {@link org.apache.flink.contrib.tweetinputformat.model.tweet.Tweet} can be searched for. Tweets can also be found
  * by place_id.
  */
 public class Places {
