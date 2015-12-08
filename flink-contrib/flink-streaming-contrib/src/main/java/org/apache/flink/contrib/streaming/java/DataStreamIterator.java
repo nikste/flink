@@ -17,16 +17,18 @@
 
 package org.apache.flink.contrib.streaming.java;
 
-import java.util.Iterator;
-import java.net.ServerSocket;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.EOFException;
-import java.util.NoSuchElementException;
-import java.util.concurrent.CountDownLatch;
-import java.io.DataInputStream;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.DataInputView;
+
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ServerSocket;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 class DataStreamIterator<T> implements Iterator<T> {
 
@@ -80,6 +82,32 @@ class DataStreamIterator<T> implements Iterator<T> {
 		return next != null;
 	}
 
+	public boolean hasImmidiateNext(int timeout) {
+		if (next == null) {
+			readImmidiateNextFromStream(timeout);
+		}
+		return next != null;
+	}
+
+	private void readImmidiateNextFromStream(int timeout) {
+		boolean gotImmidiateNextElement = false;
+		try {
+			gotImmidiateNextElement = connectionAccepted.await(timeout, TimeUnit.MILLISECONDS);
+			if(!gotImmidiateNextElement){
+				next = null;
+				return;
+			}
+		} catch (InterruptedException e) {
+			throw new RuntimeException("The calling thread of DataStreamIterator.readNextFromStream was interrupted.");
+		}
+		try {
+			next = serializer.deserialize(streamReader);
+		} catch (EOFException e) {
+			next = null;
+		} catch (IOException e) {
+			throw new RuntimeException("DataStreamIterator could not read from deserializedStream", e);
+		}
+	}
 	/**
 	 * Returns the next element of the DataStream. (Blocks if it is not available yet.)
 	 * @return The element
