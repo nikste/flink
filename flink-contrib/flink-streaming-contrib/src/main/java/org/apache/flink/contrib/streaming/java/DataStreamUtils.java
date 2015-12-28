@@ -17,17 +17,17 @@
 
 package org.apache.flink.contrib.streaming.java;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.Iterator;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.runtime.net.ConnectionUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.environment.RemoteStreamEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.runtime.net.ConnectionUtils;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 
 public final class DataStreamUtils {
 
@@ -35,7 +35,7 @@ public final class DataStreamUtils {
 	 * Returns an iterator to iterate over the elements of the DataStream.
 	 * @return The iterator
 	 */
-	public static <OUT> Iterator<OUT> collect(DataStream<OUT> stream) {
+	public static <OUT> DataStreamIterator<OUT> collect(DataStream<OUT> stream) {
 		TypeSerializer serializer = stream.getType().createSerializer(stream.getExecutionEnvironment().getConfig());
 		DataStreamIterator<OUT> it = new DataStreamIterator<OUT>(serializer);
 

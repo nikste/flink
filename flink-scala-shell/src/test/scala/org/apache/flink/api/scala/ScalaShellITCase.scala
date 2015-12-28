@@ -226,7 +226,7 @@ class ScalaShellITCase extends TestLogger {
       case Some(cl) =>
         val arg = Array("remote",
           cl.hostname,
-          Integer.toString(cl.getLeaderRPCPort))
+          Integer.toString(cl.getLeaderRPCPort),"-s")
         (cl, arg)
       case None =>
         throw new AssertionError("Cluster creation failed.")
@@ -299,7 +299,7 @@ object ScalaShellITCase {
       case Some(ej) => new FlinkILoop(
         host,
         port,
-        StreamingMode.BATCH_ONLY,
+        StreamingMode.STREAMING,
         Option(Array(ej)),
         in,
         new PrintWriter(out))
@@ -307,7 +307,7 @@ object ScalaShellITCase {
       case None => new FlinkILoop(
         host,
         port,
-        StreamingMode.BATCH_ONLY,
+        StreamingMode.STREAMING,
         in,
         new PrintWriter(out))
     }
