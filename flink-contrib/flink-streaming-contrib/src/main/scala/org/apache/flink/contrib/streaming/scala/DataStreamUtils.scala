@@ -25,6 +25,8 @@ import java.util
 import org.apache.flink.streaming.api.scala.DataStream
 import org.apache.flink.contrib.streaming.java.{DataStreamUtils => JavaDataStreamUtils}
 
+import scala.reflect.ClassTag
+import org.apache.flink.contrib.streaming.java.{DataStreamBuffer => JavaDataStreamBuffer}
 
 object DataStreamUtils {
 
@@ -32,4 +34,7 @@ object DataStreamUtils {
     JavaDataStreamUtils.collect[T](stream.getJavaStream)
   }
 
+  def DataStreamBuffer[T: ClassTag](stream: DataStream[T]): JavaDataStreamBuffer[T] ={
+    new JavaDataStreamBuffer(stream.getJavaStream)
+  }
 }

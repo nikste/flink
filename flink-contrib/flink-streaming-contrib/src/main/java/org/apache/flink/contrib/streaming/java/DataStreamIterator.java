@@ -28,9 +28,6 @@ import java.net.ServerSocket;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class DataStreamIterator<T> implements Iterator<T> {
 
@@ -87,14 +84,14 @@ public class DataStreamIterator<T> implements Iterator<T> {
 	}
 
 
-	public boolean hasImmidiateNext(int timeout) throws InterruptedException{
-		if (next == null) {
-			readImmidiateNextFromStream(timeout);
-		}
-		return next != null;
-	}
+//	public boolean hasImmidiateNext(int timeout) throws InterruptedException{
+//		if (next == null) {
+//			readImmidiateNextFromStream(timeout);
+//		}
+//		return next != null;
+//	}
 
-	private void readImmidiateNextFromStream(int timeout) throws InterruptedException {
+//	private void readImmidiateNextFromStream(int timeout) throws InterruptedException {
 //		try {
 //			connectionAccepted.await();
 //		} catch (InterruptedException e) {
@@ -108,16 +105,16 @@ public class DataStreamIterator<T> implements Iterator<T> {
 //			throw new RuntimeException("DataStreamIterator could not read from deserializedStream", e);
 //		}
 //		System.out.println("countdownlatch="+connectionAccepted.toString());
-		boolean connectionAcceptedFlag = false;
-		try {
-			connectionAcceptedFlag = connectionAccepted.await(timeout, TimeUnit.MILLISECONDS);
-			if (!connectionAcceptedFlag){
-				next = null;
-				return;
-			}
-		} catch (InterruptedException e) {
-			throw new RuntimeException("The calling thread of DataStreamIterator.readNextFromStream was interrupted.");
-		}
+//		boolean connectionAcceptedFlag = false;
+//		try {
+//			connectionAcceptedFlag = connectionAccepted.await(timeout, TimeUnit.MILLISECONDS);
+//			if (!connectionAcceptedFlag){
+//				next = null;
+//				return;
+//			}
+//		} catch (InterruptedException e) {
+//			throw new RuntimeException("The calling thread of DataStreamIterator.readNextFromStream was interrupted.");
+//		}
 		//TODO: maybe not the best way to solve this.
 //		System.out.println("further");
 
@@ -134,23 +131,23 @@ public class DataStreamIterator<T> implements Iterator<T> {
 //                },
 //				1);
 
-
-
-		ExecutorService executorService = Executors.newSingleThreadExecutor();
-		executorService.execute(new Runnable(){
-			@Override
-			public void run() {
-				try {
-					synchronized(this) {
-						next = serializer.deserialize(streamReader);
-					}
-				} catch (IOException e) {
-					throw new RuntimeException("DataStreamIterator could not read from deserializedStream", e);
-				}
-			}
-		});
-		Thread.sleep(0,timeout);
-		executorService.shutdownNow();
+//
+//
+//		ExecutorService executorService = Executors.newSingleThreadExecutor();
+//		executorService.execute(new Runnable(){
+//			@Override
+//			public void run() {
+//				try {
+//					synchronized(this) {
+//						next = serializer.deserialize(streamReader);
+//					}
+//				} catch (IOException e) {
+//					throw new RuntimeException("DataStreamIterator could not read from deserializedStream", e);
+//				}
+//			}
+//		});
+//		Thread.sleep(0,timeout);
+//		executorService.shutdownNow();
 //		TimeUnit.SECONDS.timedJoin(
 //				new Thread(){
 //					@Override
@@ -168,7 +165,7 @@ public class DataStreamIterator<T> implements Iterator<T> {
 
 
 //		System.out.println("exiting");
-	}
+//	}
 	/**
 	 * Returns the next element of the DataStream. (Blocks if it is not available yet.)
 	 * @return The element
