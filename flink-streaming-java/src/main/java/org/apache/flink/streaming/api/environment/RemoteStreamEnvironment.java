@@ -55,7 +55,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 	private final Configuration config;
 
 	/** The jar files that need to be attached to each job */
-	private final List<URL> jarFiles;
+	protected List<URL> jarFiles;
 	
 	/** The classpaths that need to be attached to each job */
 	private final List<URL> globalClasspaths;
@@ -165,7 +165,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 	}
 
 	@Override
-	public JobExecutionResult execute(String jobName) throws ProgramInvocationException {
+	public JobExecutionResult execute(String jobName) throws ProgramInvocationException, MalformedURLException {
 		StreamGraph streamGraph = getStreamGraph();
 		streamGraph.setJobName(jobName);
 		transformations.clear();
@@ -179,7 +179,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 	 *            Stream Graph to execute
 	 * @return The result of the job execution, containing elapsed time and accumulators.
 	 */
-	private JobExecutionResult executeRemotely(StreamGraph streamGraph) throws ProgramInvocationException {
+	protected JobExecutionResult executeRemotely(StreamGraph streamGraph) throws ProgramInvocationException {
 		if (LOG.isInfoEnabled()) {
 			LOG.info("Running remotely at {}:{}", host, port);
 		}
