@@ -20,7 +20,8 @@ package org.apache.flink.api.scala
 
 import java.io.{BufferedReader, File, FileOutputStream}
 
-import org.apache.flink.api.java.{JarHelper, ScalaShellRemoteEnvironment}
+import org.apache.flink.api.java.{ScalaShellRemoteStreamEnvironment, JarHelper, ScalaShellRemoteEnvironment}
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.AbstractID
 
 import scala.tools.nsc.interpreter._
@@ -51,24 +52,36 @@ class FlinkILoop(
   }
 
   // remote environment
-  private val remoteEnv: ScalaShellRemoteEnvironment = {
+  private val (remoteEnvBatch: ScalaShellRemoteEnvironment,
+  remoteEnvStream: ScalaShellRemoteStreamEnvironment) = {
     // allow creation of environments
-    ScalaShellRemoteEnvironment.resetContextEnvironments()
+//    ScalaShellRemoteEnvironment.resetContextEnvironments()
     
     // create our environment that submits against the cluster (local or remote)
-    val remoteEnv = new ScalaShellRemoteEnvironment(host, port, this)
+    val remoteEnvBatch = new ScalaShellRemoteEnvironment(host, port, this)
     
     // prevent further instantiation of environments
+//    ScalaShellRemoteEnvironment.disableAllContextAndOtherEnvironments()
+//    ScalaShellRemoteStreamEnvironment.disableAllContextAndOtherEnvironments()
+
+    val remoteEnvStream = new ScalaShellRemoteStreamEnvironment(host, port, this)
+
+    // prevent further instantiation of environments
+    ScalaShellRemoteStreamEnvironment.disableAllContextAndOtherEnvironments()
     ScalaShellRemoteEnvironment.disableAllContextAndOtherEnvironments()
-    
-    remoteEnv
+
+
+    (remoteEnvBatch, remoteEnvStream)
   }
 
-  // local environment
-  val scalaEnv: ExecutionEnvironment = {
-    val scalaEnv = new ExecutionEnvironment(remoteEnv)
-    scalaEnv
-  }
+  val scalaEnvBatch = new ExecutionEnvironment(remoteEnvBatch)
+  val scalaEnvStream = new StreamExecutionEnvironment(remoteEnvStream)
+
+//  // local environment
+//  val (scalaEnvBatch: ExecutionEnvironment, scalaEnvStream: StreamExecutionEnvironment = {
+//    val scalaEnv = new ExecutionEnvironment(remoteEnv)
+//    scalaEnv
+//  }
 
   /**
    * creates a temporary directory to store compiled console files
@@ -121,9 +134,8 @@ class FlinkILoop(
       intp.beQuietDuring {
         // import dependencies
         intp.interpret("import " + packageImports.mkString(", "))
-
-        // set execution environment
-        intp.bind("env", this.scalaEnv)
+        intp.bind("senv", this.scalaEnvStream)
+        intp.bind("benv", this.scalaEnvBatch)
       }
     }
   }
