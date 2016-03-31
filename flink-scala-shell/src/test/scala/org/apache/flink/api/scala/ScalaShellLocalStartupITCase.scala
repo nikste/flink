@@ -38,7 +38,7 @@ class ScalaShellLocalStartupITCase extends TestLogger {
         |import org.apache.flink.api.common.accumulators.IntCounter
         |import org.apache.flink.configuration.Configuration
         |
-        |val els = env.fromElements("foobar","barfoo")
+        |val els = benv.fromElements("foobar","barfoo")
         |val mapped = els.map{
         | new RichMapFunction[String, String]() {
         |   var intCounter: IntCounter = _
@@ -53,7 +53,7 @@ class ScalaShellLocalStartupITCase extends TestLogger {
         | }
         |}
         |mapped.output(new PrintingOutputFormat())
-        |val executionResult = env.execute("Test Job")
+        |val executionResult = benv.execute("Test Job")
         |System.out.println("IntCounter: " + executionResult.getIntCounterResult("intCounter"))
         |
         |:q
