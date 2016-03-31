@@ -127,7 +127,9 @@ class FlinkILoop(
     "org.apache.flink.api.java.operators._",
     "org.apache.flink.api.java.sampling._",
     "org.apache.flink.api.scala._",
-    "org.apache.flink.api.scala.utils._"
+    "org.apache.flink.api.scala.utils._",
+    "org.apache.flink.streaming.api.scala._",
+    "org.apache.flink.streaming.api.windowing.time._"
   )
 
   override def createInterpreter(): Unit = {
